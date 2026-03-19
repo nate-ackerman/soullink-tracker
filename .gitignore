@@ -1,0 +1,14 @@
+node_modules/
+out/
+release/
+dist/
+.claude/
+*.tsbuildinfo
+
+# Old build artifacts
+index-linux
+index-macos
+index-win.exe
+soullinktracker-linux
+soullinktracker-macos
+soullinktracker-win.exe
