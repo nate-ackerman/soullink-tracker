@@ -72,9 +72,10 @@ function PokemonAutocomplete({
             <button
               key={p.name}
               onMouseDown={() => {
+                const id = parseInt(p.url.split('/').filter(Boolean).pop() ?? '0', 10)
                 setQuery(p.name)
                 setShowDropdown(false)
-                onChange(p.name)
+                onChange(p.name, id || undefined)
               }}
               className="w-full text-left px-3 py-2 text-sm text-text-primary hover:bg-card capitalize"
             >
