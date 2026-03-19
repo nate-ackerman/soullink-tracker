@@ -20,10 +20,18 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Build & package
-        run: npx electron-vite build && npx electron-builder --win --x64
+      - name: Rebuild native modules for Electron
+        run: npx electron-rebuild -f -w better-sqlite3
+
+      - name: Build renderer & main
+        run: npx electron-vite build
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Package Windows installer
+        run: npx electron-builder --win --x64 --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
@@ -31,6 +39,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: release/*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-macos-arm:
     runs-on: macos-latest
@@ -43,10 +53,18 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Build & package (Apple Silicon)
-        run: npx electron-vite build && npx electron-builder --mac --arm64
+      - name: Rebuild native modules for Electron (arm64)
+        run: npx electron-rebuild -f -w better-sqlite3 --arch arm64
+
+      - name: Build renderer & main
+        run: npx electron-vite build
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Package macOS DMG (Apple Silicon)
+        run: npx electron-builder --mac --arm64 --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
@@ -54,6 +72,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: release/*.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-macos-intel:
     runs-on: macos-13
@@ -66,10 +86,18 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Build & package (Intel)
-        run: npx electron-vite build && npx electron-builder --mac --x64
+      - name: Rebuild native modules for Electron (x64)
+        run: npx electron-rebuild -f -w better-sqlite3 --arch x64
+
+      - name: Build renderer & main
+        run: npx electron-vite build
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Package macOS DMG (Intel)
+        run: npx electron-builder --mac --x64 --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
@@ -77,3 +105,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: release/*.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
