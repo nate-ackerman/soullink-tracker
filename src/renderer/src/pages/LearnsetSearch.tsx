@@ -1,13 +1,42 @@
 import { useState } from 'react'
-import { BookOpen, Search } from 'lucide-react'
+import { useLocation } from 'react-router-dom'
+import { BookOpen, ChevronRight } from 'lucide-react'
 import { Input } from '../components/ui/Input'
 import { TypeBadge } from '../components/pokemon/TypeBadge'
 import { PokemonSprite } from '../components/pokemon/PokemonSprite'
 import { Spinner } from '../components/ui/Spinner'
 import { Tabs, TabContent } from '../components/ui/Tabs'
 import { useAppStore } from '../store/appStore'
-import { usePokemonByName, usePokemonMoves, useMoveDetails, usePokemonSearch } from '../api/pokeapi'
-import type { LearnsetMove } from '../api/pokeapi'
+import { usePokemonByName, usePokemonMoves, useMoveDetails, usePokemonSearch, usePokemonSpecies, useEvolutionChain } from '../api/pokeapi'
+import type { LearnsetMove, ChainLink } from '../api/pokeapi'
+
+interface EvoStage { name: string; level: number | null }
+
+// Collect all species in the chain via DFS, carrying the level required to reach each stage
+function flattenChain(link: ChainLink, incomingLevel: number | null = null): EvoStage[] {
+  return [
+    { name: link.species.name, level: incomingLevel },
+    ...link.evolves_to.flatMap((next) => {
+      const detail = next.evolution_details.find((d) => d.trigger.name === 'level-up' && d.min_level !== null)
+      return flattenChain(next, detail?.min_level ?? null)
+    }),
+  ]
+}
+
+function EvolutionStage({ name, isSelected, onClick }: { name: string; isSelected: boolean; onClick: () => void }) {
+  const { data } = usePokemonByName(name)
+  return (
+    <button
+      onClick={onClick}
+      className={`flex flex-col items-center gap-1 px-2 py-1.5 rounded-lg transition-colors ${
+        isSelected ? 'bg-accent-teal/20 ring-1 ring-accent-teal' : 'hover:bg-elevated'
+      }`}
+    >
+      <PokemonSprite pokemonId={data?.id ?? null} pokemonName={name} size={36} />
+      <span className="text-[10px] capitalize text-text-secondary whitespace-nowrap">{name.replace(/-/g, ' ')}</span>
+    </button>
+  )
+}
 
 const LEARN_METHOD_TABS = [
   { id: 'level-up', label: 'Level Up' },
@@ -62,9 +91,12 @@ function MoveRow({ move }: { move: LearnsetMove }) {
 
 export function LearnsetSearch() {
   const { activeRun } = useAppStore()
-  const [searchQuery, setSearchQuery] = useState('')
-  const [selectedPokemon, setSelectedPokemon] = useState('')
+  const location = useLocation()
+  const prefill = (location.state as { pokemon?: string } | null)?.pokemon ?? ''
+  const [searchQuery, setSearchQuery] = useState(prefill)
+  const [selectedPokemon, setSelectedPokemon] = useState(prefill)
   const [showDropdown, setShowDropdown] = useState(false)
+  const [highlightedIndex, setHighlightedIndex] = useState(-1)
   const [activeTab, setActiveTab] = useState('level-up')
 
   const generation = activeRun?.generation ?? 3
@@ -72,6 +104,10 @@ export function LearnsetSearch() {
   const { data: searchResults } = usePokemonSearch(searchQuery)
   const { data: pokemonData, isLoading: pokemonLoading } = usePokemonByName(selectedPokemon)
   const { data: movesData, isLoading: movesLoading } = usePokemonMoves(pokemonData?.id ?? 0, generation)
+
+  const { data: speciesData } = usePokemonSpecies(pokemonData?.id ?? 0)
+  const { data: chainData } = useEvolutionChain(speciesData?.evolution_chain?.url ?? '')
+  const evoLine = chainData ? flattenChain(chainData.chain) : []
 
   const movesByMethod = movesData?.reduce((acc, move) => {
     const method = move.learnMethod
@@ -98,21 +134,45 @@ export function LearnsetSearch() {
               label="Search Pokémon"
               placeholder="Type a Pokémon name..."
               value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setShowDropdown(true) }}
+              onChange={(e) => { setSearchQuery(e.target.value); setShowDropdown(true); setHighlightedIndex(-1) }}
               onFocus={() => setShowDropdown(true)}
-              onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
+              onBlur={() => setTimeout(() => { setShowDropdown(false); setHighlightedIndex(-1) }, 200)}
+              onKeyDown={(e) => {
+                const results = searchResults?.results ?? []
+                if (!showDropdown || results.length === 0 || searchQuery.length < 2) return
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault()
+                  setHighlightedIndex((i) => Math.min(i + 1, results.length - 1))
+                } else if (e.key === 'ArrowUp') {
+                  e.preventDefault()
+                  setHighlightedIndex((i) => Math.max(i - 1, -1))
+                } else if (e.key === 'Enter') {
+                  e.preventDefault()
+                  if (highlightedIndex >= 0) {
+                    const p = results[highlightedIndex]
+                    setSelectedPokemon(p.name)
+                    setSearchQuery(p.name)
+                    setShowDropdown(false)
+                    setHighlightedIndex(-1)
+                  }
+                } else if (e.key === 'Escape') {
+                  setShowDropdown(false)
+                  setHighlightedIndex(-1)
+                }
+              }}
             />
             {showDropdown && searchResults && searchResults.results.length > 0 && searchQuery.length >= 2 && (
               <div className="absolute z-50 w-full mt-1 bg-elevated border border-border rounded shadow-xl max-h-48 overflow-y-auto">
-                {searchResults.results.map((p) => (
+                {searchResults.results.map((p, i) => (
                   <button
                     key={p.name}
                     onMouseDown={() => {
                       setSelectedPokemon(p.name)
                       setSearchQuery(p.name)
                       setShowDropdown(false)
+                      setHighlightedIndex(-1)
                     }}
-                    className="w-full text-left px-3 py-2 text-sm text-text-primary hover:bg-card capitalize"
+                    className={`w-full text-left px-3 py-2 text-sm text-text-primary capitalize ${i === highlightedIndex ? 'bg-card' : 'hover:bg-card'}`}
                   >
                     {p.name}
                   </button>
@@ -126,6 +186,28 @@ export function LearnsetSearch() {
             </div>
           )}
         </div>
+
+        {evoLine.length > 1 && (
+          <div className="flex items-center gap-0.5 flex-wrap">
+            {evoLine.map((stage, i) => (
+              <div key={stage.name} className="flex items-center gap-0.5">
+                {i > 0 && (
+                  <div className="flex flex-col items-center mx-0.5">
+                    <ChevronRight className="w-3 h-3 text-text-muted" />
+                    {stage.level !== null && (
+                      <span className="text-[9px] text-text-muted leading-none">Lv.{stage.level}</span>
+                    )}
+                  </div>
+                )}
+                <EvolutionStage
+                  name={stage.name}
+                  isSelected={selectedPokemon === stage.name}
+                  onClick={() => { setSelectedPokemon(stage.name); setSearchQuery(stage.name) }}
+                />
+              </div>
+            ))}
+          </div>
+        )}
 
         {pokemonData && (
           <div className="flex items-center gap-3 p-3 bg-card rounded-lg border border-border">

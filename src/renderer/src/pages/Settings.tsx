@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Save, Check, Download, AlertCircle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card'
-import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
+import { Input } from '../components/ui/Input'
 import { useAppStore } from '../store/appStore'
 
 function SliderRow({
@@ -54,6 +54,7 @@ function SliderRow({
 
 export function Settings() {
   const { activeRun, activeRunId, loadRunData } = useAppStore()
+  const [runName, setRunName] = useState(activeRun?.name ?? '')
   const [maxSharedTypeCount, setMaxSharedTypeCount] = useState(
     activeRun?.ruleset.maxSharedTypeCount ?? 0
   )
@@ -71,6 +72,7 @@ export function Settings() {
   if (!activeRun) return <div className="p-6 text-text-muted">No active run</div>
 
   const isDirty =
+    runName.trim() !== activeRun.name ||
     maxSharedTypeCount !== (activeRun.ruleset.maxSharedTypeCount ?? 0) ||
     maxSameTeamTypeCount !== (activeRun.ruleset.maxSameTeamTypeCount ?? 0) ||
     trainerLevelModifier !== (activeRun.ruleset.trainerLevelModifier ?? 100)
@@ -82,9 +84,11 @@ export function Settings() {
   }
 
   async function handleSave() {
+    if (!runName.trim()) return
     setSaving(true)
     try {
       await window.api.runs.update(activeRun!.id, {
+        name: runName.trim(),
         ruleset: { ...activeRun!.ruleset, maxSharedTypeCount, maxSameTeamTypeCount, trainerLevelModifier },
       })
       if (activeRunId) await loadRunData(activeRunId)
@@ -134,29 +138,17 @@ export function Settings() {
 
   return (
     <div className="p-4 space-y-4 max-w-2xl">
-      {/* Run rules (read-only) */}
+      {/* Run name */}
       <Card>
         <CardHeader>
-          <CardTitle>Run Rules</CardTitle>
+          <CardTitle>Run Name</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap gap-2">
-            {activeRun.ruleset.sharedLives && <Badge variant="info">Shared Lives</Badge>}
-            {activeRun.ruleset.dupeClause && <Badge variant="info">Dupe Clause</Badge>}
-            {activeRun.ruleset.speciesClause && <Badge variant="info">Species Clause</Badge>}
-            {activeRun.ruleset.nicknameRequired && <Badge variant="info">Nicknames Required</Badge>}
-            {!activeRun.ruleset.typeOverlap && <Badge variant="warning">No Type Overlap</Badge>}
-            {!activeRun.ruleset.sharedLives &&
-              !activeRun.ruleset.dupeClause &&
-              !activeRun.ruleset.speciesClause &&
-              !activeRun.ruleset.nicknameRequired &&
-              activeRun.ruleset.typeOverlap && (
-                <span className="text-xs text-text-muted">No special rules set at run creation</span>
-              )}
-          </div>
-          <p className="text-xs text-text-muted mt-3">
-            These rules were set when the run was created and cannot be changed here.
-          </p>
+          <Input
+            value={runName}
+            onChange={(e) => setRunName(e.target.value)}
+            placeholder="Run name"
+          />
         </CardContent>
       </Card>
 
@@ -228,7 +220,7 @@ export function Settings() {
 
       {/* Save */}
       <div className="flex items-center gap-3">
-        <Button onClick={handleSave} disabled={!isDirty || saving}>
+        <Button onClick={handleSave} disabled={!isDirty || saving || !runName.trim()}>
           {saved ? (
             <>
               <Check className="w-4 h-4" /> Saved

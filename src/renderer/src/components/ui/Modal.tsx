@@ -29,14 +29,14 @@ export function Modal({ open, onOpenChange, title, description, children, classN
             </Dialog.Overlay>
             <Dialog.Content asChild>
               <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: -10 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ duration: 0.2 }}
                 className={cn(
-                  'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50',
+                  'fixed inset-x-0 top-[5vh] mx-auto z-50',
                   'bg-card border border-border rounded-lg shadow-2xl',
-                  'focus:outline-none max-h-[90vh] overflow-y-auto',
+                  'focus:outline-none max-h-[90vh] overflow-hidden flex flex-col',
                   {
                     sm: 'w-full max-w-sm',
                     md: 'w-full max-w-md',
@@ -46,7 +46,7 @@ export function Modal({ open, onOpenChange, title, description, children, classN
                   className
                 )}
               >
-                <div className="flex items-center justify-between p-4 border-b border-border">
+                <div className="flex items-center justify-between p-4 border-b border-border shrink-0">
                   {title && (
                     <Dialog.Title className="text-base font-semibold text-text-primary">
                       {title}
@@ -61,7 +61,7 @@ export function Modal({ open, onOpenChange, title, description, children, classN
                     <X className="w-4 h-4" />
                   </Dialog.Close>
                 </div>
-                <div className="p-4">{children}</div>
+                <div className="p-4 flex flex-col flex-1 min-h-0">{children}</div>
               </motion.div>
             </Dialog.Content>
           </Dialog.Portal>

@@ -1,160 +1,701 @@
-import { useEffect } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Map, Link2, Users, Skull, TrendingUp, Heart, AlertTriangle } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card'
+import { Link2, Users, Skull, Sword, ChevronRight, Lock, CheckCircle, X } from 'lucide-react'
+import { Card, CardContent } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
-import { Button } from '../components/ui/Button'
+import { TypeBadge } from '../components/pokemon/TypeBadge'
 import { EvolvedCatchSprite } from '../components/pokemon/EvolvedCatchSprite'
 import { useAppStore } from '../store/appStore'
 import { getGameById } from '../data/games'
+import { usePokemonSpecies, useEvolutionChain, usePokemonByName } from '../api/pokeapi'
+import { resolveEvolutionAtLevel } from '../utils/evolutionUtils'
+import type { RouteInfo } from '../data/games'
+import type { Catch, SoulLink } from '../types'
 
-function StatCard({ label, value, icon: Icon, color }: { label: string; value: number | string; icon: any; color: string }) {
+// ── Party member cell (resolves evolution for learnset navigation) ────────────
+
+function PartyMemberCell({ member, levelCap }: { member: Catch; levelCap: number | null }) {
+  const navigate = useNavigate()
+  const { data: speciesData } = usePokemonSpecies(member.pokemon_id ?? 0)
+  const { data: chainData } = useEvolutionChain(speciesData?.evolution_chain?.url ?? '')
+  const evolvedName = useMemo(() => {
+    if (!chainData || levelCap === null || !member.pokemon_name) return ''
+    const resolved = resolveEvolutionAtLevel(chainData.chain, member.pokemon_name, levelCap)
+    return resolved !== member.pokemon_name ? resolved : ''
+  }, [chainData, levelCap, member.pokemon_name])
+  const { data: evolvedData } = usePokemonByName(evolvedName)
+  const displayName = evolvedData?.name ?? member.pokemon_name
+
   return (
-    <Card className="flex-1">
-      <CardContent className="flex items-center gap-3 py-3">
-        <div className="p-2 rounded" style={{ backgroundColor: `${color}20` }}>
-          <Icon className="w-4 h-4" style={{ color }} />
-        </div>
-        <div>
-          <p className="text-xl font-bold text-text-primary">{value}</p>
-          <p className="text-xs text-text-muted">{label}</p>
-        </div>
-      </CardContent>
-    </Card>
+    <div
+      onClick={() => displayName && navigate('/learnset', { state: { pokemon: displayName } })}
+      className="aspect-square rounded bg-elevated border border-border flex items-center justify-center cursor-pointer hover:opacity-75 transition-opacity"
+    >
+      <EvolvedCatchSprite
+        pokemonId={member.pokemon_id}
+        pokemonName={member.pokemon_name}
+        levelCap={levelCap}
+        size={36}
+        grayscale={member.status === 'dead'}
+      />
+    </div>
   )
 }
 
+// ── Route Progress Bar ────────────────────────────────────────────────────────
+
+const EXCLUDED_ENCOUNTER_IDS = new Set([
+  'ss-anne', 'silph-co',
+  'indigo-plateau', 'indigo-plateau-johto',
+  'pokemon-league-hoenn', 'pokemon-league-sinnoh', 'pokemon-league-unova', 'pokemon-league-b2w2',
+  'team-rocket-hq', 'join-avenue', 'floaroma-meadow', 'mt-chimney',
+])
+
+interface RouteBarProps {
+  succeeded: number
+  failed: number
+  accessible: number
+  upcoming: number
+  total: number
+}
+
+function RouteProgressBar({ succeeded, failed, accessible, upcoming, total }: RouteBarProps) {
+  if (total === 0) return null
+  const segments = [
+    { key: 'succeeded', count: succeeded, label: 'Succeeded', color: '#22c55e' },
+    { key: 'failed', count: failed, label: 'Failed', color: '#ef4444' },
+    { key: 'accessible', count: accessible, label: 'Accessible', color: '#38b2ac' },
+    { key: 'upcoming', count: upcoming, label: 'Upcoming', color: '#ecc94b' },
+  ].filter((s) => s.count > 0)
+
+  return (
+    <div className="space-y-2">
+      <p className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">Encounters</p>
+      <div className="flex h-3 rounded-full overflow-visible gap-px">
+        {segments.map((seg, i) => (
+          <div
+            key={seg.key}
+            className="relative group flex-shrink-0 transition-opacity hover:opacity-80 cursor-default"
+            style={{
+              width: `${(seg.count / total) * 100}%`,
+              backgroundColor: seg.color,
+              borderRadius: i === 0 ? '9999px 0 0 9999px' : i === segments.length - 1 ? '0 9999px 9999px 0' : '0',
+            }}
+          >
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-20 pointer-events-none">
+              <div className="bg-elevated border border-border rounded px-2 py-1 text-xs text-text-primary whitespace-nowrap shadow-lg">
+                <span className="font-bold" style={{ color: seg.color }}>{seg.count}</span>
+                <span className="text-text-secondary ml-1">{seg.label}</span>
+              </div>
+              <div className="w-1.5 h-1.5 bg-elevated border-r border-b border-border rotate-45 mx-auto -mt-[3px]" />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center gap-4 text-[10px] text-text-muted">
+        {[
+          { label: 'Succeeded', color: '#22c55e', count: succeeded },
+          { label: 'Failed', color: '#ef4444', count: failed },
+          { label: 'Accessible', color: '#38b2ac', count: accessible },
+          { label: 'Upcoming', color: '#ecc94b', count: upcoming },
+        ].map(({ label, color, count }) => (
+          <span key={label} className="flex items-center gap-1">
+            <span className="inline-block w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: color }} />
+            <span>{count} {label}</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Mark Death Modal ──────────────────────────────────────────────────────────
+
+interface MarkDeathModalProps {
+  activeLinks: SoulLink[]
+  prefillRoute?: string
+  onConfirm: (linkId: string, route: string) => Promise<void>
+  onClose: () => void
+}
+
+function MarkDeathModal({ activeLinks, prefillRoute, onConfirm, onClose }: MarkDeathModalProps) {
+  const { catches, players } = useAppStore()
+  const [selectedLinkId, setSelectedLinkId] = useState<string>('')
+  const [route, setRoute] = useState(prefillRoute ?? '')
+  const [saving, setSaving] = useState(false)
+
+  async function handleConfirm() {
+    if (!selectedLinkId || !route.trim()) return
+    setSaving(true)
+    const link = activeLinks.find((l) => l.id === selectedLinkId)
+    if (link) {
+      const aliveCatch = link.catch_ids
+        .map((cid) => catches.find((c) => c.id === cid))
+        .find((c) => c?.status === 'alive')
+      if (aliveCatch) await onConfirm(aliveCatch.id, route.trim())
+    }
+    setSaving(false)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div
+        className="bg-card border border-border rounded-lg w-full max-w-sm mx-4 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-4 pt-4 pb-2">
+          <p className="text-sm font-semibold text-text-primary">Mark a Death</p>
+          <button onClick={onClose} className="text-text-muted hover:text-text-primary">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="px-4 pb-4 space-y-3">
+          {/* Soul link picker */}
+          <div className="space-y-1 max-h-52 overflow-y-auto">
+            {activeLinks.map((link) => {
+              const members = link.catch_ids
+                .map((cid) => catches.find((c) => c.id === cid))
+                .filter(Boolean) as typeof catches
+              return (
+                <button
+                  key={link.id}
+                  onClick={() => setSelectedLinkId(link.id)}
+                  className={`w-full flex items-center gap-2 px-3 py-2 rounded border transition-colors text-left ${
+                    selectedLinkId === link.id
+                      ? 'border-accent-teal bg-accent-teal/10'
+                      : 'border-border hover:border-border-light'
+                  }`}
+                >
+                  <div className="flex items-center gap-1">
+                    {members.map((m) => {
+                      const player = players.find((p) => p.id === m.player_id)
+                      return (
+                        <div key={m.id} className="flex items-center gap-0.5">
+                          <EvolvedCatchSprite
+                            pokemonId={m.pokemon_id}
+                            pokemonName={m.pokemon_name}
+                            levelCap={null}
+                            size={28}
+                          />
+                          {player && (
+                            <span className="text-[9px]" style={{ color: player.color }}>{player.name}</span>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <span className="text-xs text-text-secondary ml-auto">
+                    {members.map((m) => m.nickname ?? m.pokemon_name ?? '?').join(' & ')}
+                  </span>
+                </button>
+              )
+            })}
+            {activeLinks.length === 0 && (
+              <p className="text-xs text-text-muted text-center py-4">No active soul links</p>
+            )}
+          </div>
+
+          {/* Route input */}
+          <input
+            type="text"
+            value={route}
+            onChange={(e) => setRoute(e.target.value)}
+            placeholder="e.g. Route 4, Victory Road"
+            className="w-full text-xs bg-elevated border border-border rounded px-3 py-2 text-text-primary placeholder:text-text-muted focus:outline-none focus:border-border-light"
+            readOnly={!!prefillRoute}
+          />
+
+          <div className="flex gap-2">
+            <button
+              onClick={onClose}
+              className="flex-1 py-2 text-xs rounded border border-border text-text-secondary hover:bg-elevated transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirm}
+              disabled={!selectedLinkId || !route.trim() || saving}
+              className="flex-1 py-2 text-xs rounded bg-red-900/60 border border-red-700/40 text-red-300 hover:bg-red-900/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {saving ? 'Saving…' : 'Confirm Death'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Main Dashboard ─────────────────────────────────────────────────────────────
+
 export function RunDashboard() {
   const navigate = useNavigate()
-  const { activeRun, activeRunId, players, catches, soulLinks, partySlots, loadRunData, levelCap } = useAppStore()
+  const {
+    activeRun, activeRunId, players, catches, soulLinks, partySlots,
+    loadRunData, levelCap, setLevelCap, battleRecords, refreshBattles
+  } = useAppStore()
+
+
+  const [showDeathModal, setShowDeathModal] = useState(false)
+  const [deathPrefillRoute, setDeathPrefillRoute] = useState<string | undefined>()
 
   useEffect(() => {
     if (activeRunId) loadRunData(activeRunId)
   }, [activeRunId])
+
+  // Derive level cap from battle progression whenever run or battles change
+  useEffect(() => {
+    if (!activeRun) return
+    const gameInfo = getGameById(activeRun.game)
+    const modifier = activeRun.ruleset.trainerLevelModifier ?? 100
+    const leaders = [...(gameInfo?.gymLeaders ?? [])].sort((a, b) => a.levelCap - b.levelCap)
+    if (leaders.length === 0) return
+    const adj = (base: number) => Math.round(base * modifier / 100)
+
+    // Use victory count as a position index into the sorted leader list.
+    // This correctly handles duplicate level caps and same-named leaders.
+    const completedCount = battleRecords.filter((b) => b.outcome === 'victory').length
+    const next = leaders[completedCount]
+    if (next) {
+      setLevelCap(adj(next.levelCap))
+    } else if (leaders.length > 0) {
+      // All fights done — hold at the champion's cap
+      setLevelCap(adj(leaders[leaders.length - 1].levelCap))
+    }
+  }, [activeRunId, battleRecords])
 
   if (!activeRun) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center space-y-3">
           <p className="text-text-secondary">No active run selected</p>
-          <Button onClick={() => navigate('/')}>Go to Home</Button>
+          <button onClick={() => navigate('/')} className="text-sm text-accent-teal hover:underline">
+            Go to Home
+          </button>
         </div>
       </div>
     )
   }
 
   const gameInfo = getGameById(activeRun.game)
-  const totalCatches = catches.filter((c) => c.status !== 'released').length
-  const totalDeaths = catches.filter((c) => c.status === 'dead').length
-  const totalRoutes = new Set(catches.map((c) => c.route_id)).size
-  const totalLinks = soulLinks.length
+  const modifier = activeRun.ruleset.trainerLevelModifier ?? 100
+  const gymLeaders = [...(gameInfo?.gymLeaders ?? [])].sort((a, b) => a.levelCap - b.levelCap)
+  const adjustedCap = (base: number) => Math.round(base * modifier / 100)
 
-  const quickLinks = [
-    { label: 'Routes', icon: Map, to: '/routes', description: 'Log catches per route' },
-    { label: 'Soul Links', icon: Link2, to: '/soul-links', description: 'View all pairings' },
-    { label: 'Party', icon: Users, to: '/party', description: 'Manage active parties' },
-    { label: 'Graveyard', icon: Skull, to: '/graveyard', description: 'View fallen Pokémon' }
+  const pendingBattle = battleRecords.find((b) => b.outcome === 'pending') ?? null
+  const pastBattles = battleRecords.filter((b) => b.outcome === 'victory')
+
+  // Next gym: index by victory count — handles duplicate level caps and same-named leaders correctly
+  const completedCount = battleRecords.filter((b) => b.outcome === 'victory').length
+  const nextGym = gymLeaders[completedCount] ?? null
+
+  // Route progress stats
+  const allRoutes: RouteInfo[] = [
+    ...(gameInfo?.routes ?? []).filter((r) => !EXCLUDED_ENCOUNTER_IDS.has(r.id) && !(activeRun.ruleset.hiddenEncounters ?? []).includes(r.id)),
+    ...(activeRun.ruleset.addedEncounters ?? []),
   ]
+  const sortedLeadersForBar = [...gymLeaders] // already sorted above
+  const hasGatingForBar = sortedLeadersForBar.some((g) => (g.locations?.length ?? 0) > 0)
+
+  function getAccessForBar(routeId: string): 'accessible' | 'completed' | 'inaccessible' | 'ungated' {
+    if (!hasGatingForBar) return 'ungated'
+    for (let i = 0; i < sortedLeadersForBar.length; i++) {
+      if ((sortedLeadersForBar[i].locations ?? []).some((l) => l.id === routeId)) {
+        if (i < completedCount) return 'completed'
+        if (i === completedCount) return 'accessible'
+        return 'inaccessible'
+      }
+    }
+    return 'ungated'
+  }
+
+  function getStatusForBar(routeId: string): 'empty' | 'failed' | 'logged' {
+    const rc = catches.filter((c) => c.route_id === routeId)
+    if (rc.length === 0) return 'empty'
+    if (rc.some((c) => c.status === 'failed')) return 'failed'
+    return 'logged'
+  }
+
+  const barSucceeded = allRoutes.filter((r) => getAccessForBar(r.id) !== 'inaccessible' && getStatusForBar(r.id) === 'logged').length
+  const barFailed = allRoutes.filter((r) => getAccessForBar(r.id) !== 'inaccessible' && getStatusForBar(r.id) === 'failed').length
+  const barAccessible = allRoutes.filter((r) => getAccessForBar(r.id) !== 'inaccessible' && getStatusForBar(r.id) === 'empty').length
+  const barUpcoming = allRoutes.filter((r) => getAccessForBar(r.id) === 'inaccessible').length
+
+  // Stats
+  const activeLinks = soulLinks.filter((sl) => sl.status === 'active')
+  const brokenLinks = soulLinks.filter((sl) => sl.status === 'broken').length
+
+  // Links that have at least one member currently in the party (for battle death modal)
+  const partyCatchIds = new Set(partySlots.map((ps) => ps.catch_id))
+  const partyActiveLinks = activeLinks.filter((sl) =>
+    sl.catch_ids.some((cid) => partyCatchIds.has(cid))
+  )
+
+  // Recent dead soul links — sorted by most recent death within each link
+  const recentDeadLinks = [...soulLinks]
+    .filter((sl) => sl.status === 'broken')
+    .map((sl) => {
+      const linkedCatches = sl.catch_ids
+        .map((cid) => catches.find((c) => c.id === cid))
+        .filter(Boolean) as typeof catches
+      const latestDeath = Math.max(
+        ...linkedCatches.filter((c) => c.status === 'dead').map((c) => new Date(c.died_at ?? 0).getTime())
+      )
+      const diedRoute = linkedCatches.find((c) => c.died_route)?.died_route ?? null
+      return { sl, linkedCatches, latestDeath, diedRoute }
+    })
+    .sort((a, b) => b.latestDeath - a.latestDeath)
+    .slice(0, 3)
+
+  async function handleLockIn() {
+    if (!activeRun || !nextGym || pendingBattle) return
+    const snapshot = players.map((player) => {
+      const slots = partySlots
+        .filter((ps) => ps.player_id === player.id)
+        .map((ps) => ({ slot: ps.slot, catch_id: ps.catch_id }))
+      return { player_id: player.id, slots }
+    })
+    await window.api.battles.create({
+      run_id: activeRun.id,
+      gym_leader_name: nextGym.name,
+      level_cap: adjustedCap(nextGym.levelCap),
+      party_snapshot: snapshot
+    })
+    await refreshBattles()
+  }
+
+  async function handleCompleteBattle() {
+    if (!pendingBattle) return
+    await window.api.battles.update(pendingBattle.id, { outcome: 'victory' })
+    await refreshBattles()
+  }
+
+  async function handleMarkDeath(catchId: string, route: string) {
+    await window.api.catches.kill(catchId, route)
+    if (activeRunId) await loadRunData(activeRunId)
+  }
+
+  function openBattleDeath() {
+    setDeathPrefillRoute(pendingBattle?.gym_leader_name)
+    setShowDeathModal(true)
+  }
+
+  function openWildDeath() {
+    setDeathPrefillRoute(undefined)
+    setShowDeathModal(true)
+  }
 
   return (
-    <div className="p-6 space-y-6 max-w-5xl mx-auto">
+    <div className="p-5 space-y-5 max-w-5xl mx-auto">
+
       {/* Run header */}
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
+      <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>
         <div className="flex items-start justify-between">
           <div>
             <h2 className="text-xl font-bold text-text-primary">{activeRun.name}</h2>
-            <div className="flex items-center gap-3 mt-1">
-              <span className="text-sm text-text-secondary capitalize">
-                {gameInfo?.name ?? activeRun.game}
-              </span>
-              <span className="text-text-muted">•</span>
-              <span className="text-sm text-text-muted">Gen {activeRun.generation}</span>
-              <span className="text-text-muted">•</span>
-              <span className="text-sm text-text-muted">
-                Started {new Date(activeRun.created_at).toLocaleDateString()}
-              </span>
+            <div className="flex items-center gap-2 mt-1 text-sm text-text-muted">
+              <span className="text-text-secondary">{gameInfo?.name ?? activeRun.game}</span>
+              <span>·</span>
+              <span>Gen {activeRun.generation}</span>
+              <span>·</span>
+              <span>{players.map((p) => p.name).join(' & ')}</span>
+              <span>·</span>
+              <span>Since {new Date(activeRun.created_at).toLocaleDateString()}</span>
             </div>
           </div>
-          <Badge
-            variant={activeRun.status === 'active' ? 'success' : activeRun.status === 'failed' ? 'danger' : 'info'}
-          >
+          <Badge variant={activeRun.status === 'active' ? 'success' : activeRun.status === 'failed' ? 'danger' : 'info'}>
             {activeRun.status}
           </Badge>
         </div>
       </motion.div>
 
-      {/* Stats */}
+      {/* Stat row */}
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
+        initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="flex gap-3"
+        transition={{ delay: 0.05 }}
+        className="grid grid-cols-2 gap-3"
       >
-        <StatCard label="Routes Visited" value={totalRoutes} icon={Map} color="#38b2ac" />
-        <StatCard label="Total Catches" value={totalCatches} icon={Heart} color="#22c55e" />
-        <StatCard label="Soul Links" value={totalLinks} icon={Link2} color="#a855f7" />
-        <StatCard label="Deaths" value={totalDeaths} icon={AlertTriangle} color="#ef4444" />
+        {[
+          { label: 'Active Links', value: activeLinks.length, color: '#38b2ac' },
+          { label: 'Broken Links', value: brokenLinks, color: brokenLinks > 0 ? '#f97316' : '#6b7280' },
+        ].map(({ label, value, color }) => (
+          <Card key={label}>
+            <CardContent className="py-3 text-center">
+              <p className="text-2xl font-bold" style={{ color }}>{value}</p>
+              <p className="text-xs text-text-muted mt-0.5">{label}</p>
+            </CardContent>
+          </Card>
+        ))}
       </motion.div>
 
-      {/* Player summaries */}
+      {/* Encounter progress bar */}
+      {allRoutes.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.08 }}
+          className="px-1"
+        >
+          <RouteProgressBar
+            succeeded={barSucceeded}
+            failed={barFailed}
+            accessible={barAccessible}
+            upcoming={barUpcoming}
+            total={allRoutes.length}
+          />
+        </motion.div>
+      )}
+
+      {/* Main content grid */}
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
+        initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.15 }}
+        transition={{ delay: 0.1 }}
+        className="grid grid-cols-3 gap-4"
       >
-        <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wider mb-3">Players</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {/* Left column */}
+        <div className="col-span-2 space-y-4">
+
+          {/* Upcoming Battle */}
+          {(nextGym || pendingBattle) && (
+            <Card className="border-accent-gold/30 bg-accent-gold/5">
+              <CardContent className="py-3">
+                <div className="flex items-center gap-2 mb-3">
+                  <Sword className="w-3.5 h-3.5 text-accent-gold" />
+                  <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
+                    Upcoming Battle
+                  </span>
+                  {pendingBattle && (
+                    <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-400 font-semibold uppercase tracking-wider flex items-center gap-1">
+                      <Lock className="w-2.5 h-2.5" /> Locked
+                    </span>
+                  )}
+                </div>
+
+                {(() => {
+                  const battle = pendingBattle
+                    ? gymLeaders.find((g) => g.name === pendingBattle.gym_leader_name) ?? null
+                    : nextGym ?? null
+                  const displayName = pendingBattle?.gym_leader_name ?? battle?.name ?? ''
+                  const displayCap = pendingBattle?.level_cap ?? (battle ? adjustedCap(battle.levelCap) : 0)
+                  const displayCity = battle?.city ?? ''
+                  const displayTypes = battle?.types ?? []
+                  const displayKind = battle?.kind
+
+                  return (
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <p className={`text-base font-bold ${
+                          displayKind === 'champion' ? 'text-accent-gold' :
+                          displayKind === 'elite4' ? 'text-purple-400' :
+                          displayKind === 'rival' ? 'text-blue-400' :
+                          displayKind === 'boss' ? 'text-red-400' :
+                          'text-text-primary'
+                        }`}>{displayName}</p>
+                        {displayCity && <p className="text-xs text-text-muted">{displayCity}</p>}
+                        {displayTypes.length > 0 && (
+                          <div className="flex gap-1 mt-1.5">
+                            {displayTypes.map((t) => <TypeBadge key={t} type={t} size="sm" />)}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <p className="text-2xl font-bold text-accent-gold">Lv. {displayCap}</p>
+                        <p className="text-xs text-text-muted">Ace Level</p>
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                {/* Actions */}
+                {pendingBattle ? (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={openBattleDeath}
+                      className="flex-1 py-2 text-xs rounded border border-red-700/40 bg-red-900/30 text-red-300 hover:bg-red-900/50 transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      <Skull className="w-3 h-3" /> Mark a Death
+                    </button>
+                    <button
+                      onClick={handleCompleteBattle}
+                      className="flex-1 py-2 text-xs rounded border border-green-700/40 bg-green-900/30 text-green-300 hover:bg-green-900/50 transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      <CheckCircle className="w-3 h-3" /> Complete Battle
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleLockIn}
+                    className="w-full py-2 text-xs rounded border border-accent-gold/30 bg-accent-gold/10 text-accent-gold hover:bg-accent-gold/20 transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <Lock className="w-3 h-3" /> Lock in Party
+                  </button>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Wild death button (always shown when there are active links) */}
+          {activeLinks.length > 0 && (
+            <button
+              onClick={openWildDeath}
+              className="w-full py-2 text-xs rounded border border-border text-text-muted hover:text-red-300 hover:border-red-700/40 hover:bg-red-900/20 transition-colors flex items-center justify-center gap-1.5"
+            >
+              <Skull className="w-3 h-3" /> Mark Wild / Route Death
+            </button>
+          )}
+
+          {/* Past battles */}
+          {pastBattles.length > 0 && (
+            <Card>
+              <CardContent className="py-3">
+                <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">Past Battles</p>
+                <div className="space-y-2">
+                  {[...pastBattles].reverse().map((battle) => (
+                    <div key={battle.id} className="flex items-start gap-3 px-1">
+                      <div className="whitespace-nowrap shrink-0">
+                        <span className="text-xs text-text-secondary font-medium">{battle.gym_leader_name}</span>
+                        <span className="text-[10px] text-text-muted ml-2">Lv. {battle.level_cap}</span>
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {(() => {
+                          const allCatchIds = battle.party_snapshot.flatMap((ps) => ps.slots.map((s) => s.catch_id))
+                          const assigned = new Set<string>()
+                          const groups: string[][] = []
+                          for (const cid of allCatchIds) {
+                            if (assigned.has(cid)) continue
+                            const link = soulLinks.find((sl) => sl.catch_ids.includes(cid))
+                            if (link) {
+                              const group = link.catch_ids.filter((id) => allCatchIds.includes(id))
+                              groups.push(group)
+                              group.forEach((id) => assigned.add(id))
+                            } else {
+                              groups.push([cid])
+                              assigned.add(cid)
+                            }
+                          }
+                          return groups.map((group, gi) => (
+                            <div key={gi} className="flex items-center gap-0.5">
+                              {group.map((cid, ci) => {
+                                const c = catches.find((x) => x.id === cid)
+                                return c ? (
+                                  <div key={cid} className="flex items-center gap-0.5">
+                                    {ci > 0 && <Link2 className="w-2.5 h-2.5 text-accent-teal" />}
+                                    <EvolvedCatchSprite
+                                      pokemonId={c.pokemon_id}
+                                      pokemonName={c.pokemon_name}
+                                      levelCap={null}
+                                      size={20}
+                                      grayscale={c.status === 'dead'}
+                                    />
+                                  </div>
+                                ) : null
+                              })}
+                            </div>
+                          ))
+                        })()}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Recent deaths */}
+          {recentDeadLinks.length > 0 && (
+            <Card className="border-red-900/30">
+              <CardContent className="py-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Skull className="w-3.5 h-3.5 text-red-400" />
+                  <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Recent Deaths</span>
+                </div>
+                <div className="space-y-1">
+                  {recentDeadLinks.map(({ sl, linkedCatches, diedRoute }) => (
+                    <div key={sl.id} className="flex items-center gap-2 px-1 py-1">
+                      <div className="flex items-center gap-1">
+                        {linkedCatches.map((c, i) => (
+                          <div key={c.id} className="flex items-center gap-1">
+                            {i > 0 && <Link2 className="w-2.5 h-2.5 text-red-400/60" />}
+                            <EvolvedCatchSprite
+                              pokemonId={c.pokemon_id}
+                              pokemonName={c.pokemon_name}
+                              levelCap={levelCap}
+                              size={28}
+                              grayscale
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-text-secondary truncate">
+                          {linkedCatches[0]?.nickname ?? linkedCatches.map((c) => c.pokemon_name ?? 'Unknown').join(' & ')}
+                        </p>
+                        {linkedCatches[0]?.nickname && (
+                          <p className="text-[10px] text-text-muted capitalize truncate">
+                            {linkedCatches.map((c) => c.pokemon_name ?? '?').join(' & ')}
+                          </p>
+                        )}
+                        {diedRoute && (
+                          <p className="text-[10px] text-text-muted">on {diedRoute}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        {/* Right column: parties */}
+        <div className="space-y-3">
+          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Parties</p>
           {players.map((player) => {
-            const playerCatches = catches.filter((c) => c.player_id === player.id)
-            const playerDeaths = playerCatches.filter((c) => c.status === 'dead').length
-            const playerPartySlots = partySlots.filter((ps) => ps.player_id === player.id)
-            const partyMembers = playerPartySlots
+            const playerSlots = partySlots
+              .filter((ps) => ps.player_id === player.id)
               .sort((a, b) => a.slot - b.slot)
-              .map((ps) => catches.find((c) => c.id === ps.catch_id))
-              .filter(Boolean)
+            const partyMembers = [0, 1, 2, 3, 4, 5].map((slot) => {
+              const ps = playerSlots.find((s) => s.slot === slot)
+              return ps ? catches.find((c) => c.id === ps.catch_id) : undefined
+            })
+            const alive = catches.filter((c) => c.player_id === player.id && c.status === 'alive').length
+            const dead = catches.filter((c) => c.player_id === player.id && c.status === 'dead').length
 
             return (
               <Card key={player.id} className="overflow-hidden">
                 <div className="h-1" style={{ backgroundColor: player.color }} />
-                <CardContent className="pt-3">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: player.color }} />
-                      <span className="font-semibold text-text-primary">{player.name}</span>
+                <CardContent className="pt-3 pb-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: player.color }} />
+                      <span className="text-sm font-semibold text-text-primary">{player.name}</span>
                     </div>
-                    <div className="flex gap-3 text-xs text-text-muted">
-                      <span>{playerCatches.filter(c => c.status === 'alive').length} alive</span>
-                      {playerDeaths > 0 && (
-                        <span className="text-red-400">{playerDeaths} dead</span>
-                      )}
+                    <div className="flex gap-2 text-xs text-text-muted">
+                      <span className="text-green-400">{alive} alive</span>
+                      {dead > 0 && <span className="text-red-400">{dead} dead</span>}
                     </div>
                   </div>
-
-                  {/* Party preview */}
-                  <div className="flex gap-1">
-                    {Array.from({ length: 6 }).map((_, slot) => {
-                      const member = partyMembers[slot] as any
-                      return (
-                        <div
-                          key={slot}
-                          className="w-10 h-10 rounded bg-elevated border border-border flex items-center justify-center"
-                        >
-                          {member ? (
-                            <EvolvedCatchSprite
-                              pokemonId={member.pokemon_id}
-                              pokemonName={member.pokemon_name}
-                              levelCap={levelCap}
-                              size={36}
-                              grayscale={member.status === 'dead'}
-                            />
-                          ) : (
-                            <span className="text-text-muted text-xs">{slot + 1}</span>
-                          )}
+                  <div className="grid grid-cols-3 gap-1">
+                    {partyMembers.map((member, slot) => (
+                      member ? (
+                        <PartyMemberCell key={slot} member={member} levelCap={levelCap} />
+                      ) : (
+                        <div key={slot} className="aspect-square rounded bg-elevated border border-border flex items-center justify-center">
+                          <span className="text-[10px] text-text-muted opacity-40">{slot + 1}</span>
                         </div>
                       )
-                    })}
+                    ))}
                   </div>
+                  <button
+                    onClick={() => navigate('/party')}
+                    className="w-full mt-2 text-[10px] text-text-muted hover:text-accent-teal transition-colors text-center"
+                  >
+                    Manage party →
+                  </button>
                 </CardContent>
               </Card>
             )
@@ -162,88 +703,18 @@ export function RunDashboard() {
         </div>
       </motion.div>
 
-      {/* Quick navigation */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-      >
-        <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wider mb-3">Quick Access</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          {quickLinks.map(({ label, icon: Icon, to, description }) => (
-            <button
-              key={to}
-              onClick={() => navigate(to)}
-              className="flex flex-col items-center gap-2 p-4 rounded-lg bg-card border border-border hover:bg-elevated hover:border-border-light transition-all text-center group"
-            >
-              <Icon className="w-5 h-5 text-text-muted group-hover:text-accent-teal transition-colors" />
-              <span className="text-xs font-medium text-text-secondary group-hover:text-text-primary transition-colors">
-                {label}
-              </span>
-            </button>
-          ))}
-        </div>
-      </motion.div>
-
-      {/* Recent activity */}
-      {catches.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25 }}
-        >
-          <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wider mb-3">Recent Catches</h3>
-          <Card>
-            <div className="divide-y divide-border">
-              {[...catches]
-                .sort((a, b) => new Date(b.caught_at).getTime() - new Date(a.caught_at).getTime())
-                .slice(0, 5)
-                .map((c) => {
-                  const player = players.find((p) => p.id === c.player_id)
-                  return (
-                    <div key={c.id} className="flex items-center gap-3 px-4 py-2">
-                      <EvolvedCatchSprite pokemonId={c.pokemon_id} pokemonName={c.pokemon_name} levelCap={levelCap} size={32} />
-                      <div className="flex-1">
-                        <span className="text-sm text-text-primary">{c.nickname ?? c.pokemon_name ?? 'Unknown'}</span>
-                        <span className="text-xs text-text-muted ml-2">Lv. {levelCap ?? 5}</span>
-                      </div>
-                      {player && (
-                        <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: `${player.color}30`, color: player.color }}>
-                          {player.name}
-                        </span>
-                      )}
-                      <span className="text-xs text-text-muted">{c.route_id.replace(/-/g, ' ')}</span>
-                    </div>
-                  )
-                })}
-            </div>
-          </Card>
-        </motion.div>
+      {/* Mark Death Modal */}
+      {showDeathModal && (
+        <MarkDeathModal
+          activeLinks={deathPrefillRoute ? partyActiveLinks : activeLinks}
+          prefillRoute={deathPrefillRoute}
+          onConfirm={async (catchId, route) => {
+            await handleMarkDeath(catchId, route)
+            setShowDeathModal(false)
+          }}
+          onClose={() => setShowDeathModal(false)}
+        />
       )}
-
-      {/* Rules summary */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-      >
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-text-muted" /> Active Rules
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {activeRun.ruleset.sharedLives && <Badge variant="info">Shared Lives</Badge>}
-              {activeRun.ruleset.dupeClause && <Badge variant="info">Dupe Clause</Badge>}
-              {activeRun.ruleset.speciesClause && <Badge variant="info">Species Clause</Badge>}
-              {activeRun.ruleset.nicknameRequired && <Badge variant="info">Nicknames Required</Badge>}
-              {!activeRun.ruleset.typeOverlap && <Badge variant="warning">No Type Overlap</Badge>}
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
     </div>
   )
 }

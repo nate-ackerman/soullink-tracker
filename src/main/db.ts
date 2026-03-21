@@ -105,6 +105,18 @@ function initializeSchema(): void {
       updated_at TEXT NOT NULL,
       FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS battle_records (
+      id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL,
+      gym_leader_name TEXT NOT NULL,
+      level_cap INTEGER NOT NULL,
+      party_snapshot TEXT NOT NULL,
+      outcome TEXT NOT NULL DEFAULT 'pending',
+      created_at TEXT NOT NULL,
+      completed_at TEXT,
+      FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
+    );
   `)
 }
 
@@ -629,4 +641,45 @@ export function dbUpdateNote(id: string, content: string) {
 export function dbDeleteNote(id: string) {
   const database = getDb()
   database.prepare('DELETE FROM notes WHERE id = ?').run(id)
+}
+
+// ── Battle Records ─────────────────────────────────────────────────────────────
+
+export function dbGetBattlesByRun(runId: string) {
+  const database = getDb()
+  const records = database.prepare('SELECT * FROM battle_records WHERE run_id = ? ORDER BY created_at').all(runId) as any[]
+  return records.map((r) => ({ ...r, party_snapshot: JSON.parse(r.party_snapshot) }))
+}
+
+export function dbCreateBattle(data: {
+  run_id: string
+  gym_leader_name: string
+  level_cap: number
+  party_snapshot: object
+}) {
+  const database = getDb()
+  const id = uuidv4()
+  const now = new Date().toISOString()
+  database
+    .prepare(
+      'INSERT INTO battle_records (id, run_id, gym_leader_name, level_cap, party_snapshot, outcome, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    )
+    .run(id, data.run_id, data.gym_leader_name, data.level_cap, JSON.stringify(data.party_snapshot), 'pending', now)
+  const record = database.prepare('SELECT * FROM battle_records WHERE id = ?').get(id) as any
+  return { ...record, party_snapshot: JSON.parse(record.party_snapshot) }
+}
+
+export function dbUpdateBattle(id: string, data: { outcome: string }) {
+  const database = getDb()
+  const now = new Date().toISOString()
+  database
+    .prepare("UPDATE battle_records SET outcome = ?, completed_at = ? WHERE id = ?")
+    .run(data.outcome, now, id)
+  const record = database.prepare('SELECT * FROM battle_records WHERE id = ?').get(id) as any
+  return { ...record, party_snapshot: JSON.parse(record.party_snapshot) }
+}
+
+export function dbDeleteBattle(id: string) {
+  const database = getDb()
+  database.prepare('DELETE FROM battle_records WHERE id = ?').run(id)
 }

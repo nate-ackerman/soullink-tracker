@@ -7,7 +7,8 @@ import {
   dbGetPartyByPlayer, dbSetPartySlot, dbClearPartySlot, dbClearAllParty,
   dbAddSoulLinkToParty, dbRemoveSoulLinkFromParty,
   dbGetNotesByRun, dbCreateNote, dbUpdateNote, dbDeleteNote,
-  dbExportRun, dbImportRun
+  dbExportRun, dbImportRun,
+  dbGetBattlesByRun, dbCreateBattle, dbUpdateBattle, dbDeleteBattle
 } from './db'
 
 export function registerIpcHandlers(): void {
@@ -72,4 +73,10 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('notes:create', (_e, data) => dbCreateNote(data))
   ipcMain.handle('notes:update', (_e, id: string, content: string) => dbUpdateNote(id, content))
   ipcMain.handle('notes:delete', (_e, id: string) => dbDeleteNote(id))
+
+  // ── Battle Records ──────────────────────────────────────────────────────────
+  ipcMain.handle('battles:getByRun', (_e, runId: string) => dbGetBattlesByRun(runId))
+  ipcMain.handle('battles:create', (_e, data) => dbCreateBattle(data))
+  ipcMain.handle('battles:update', (_e, id: string, data) => dbUpdateBattle(id, data))
+  ipcMain.handle('battles:delete', (_e, id: string) => dbDeleteBattle(id))
 }

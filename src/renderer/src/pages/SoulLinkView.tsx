@@ -1,21 +1,78 @@
-import { useState } from 'react'
-import { Link2, Skull, CheckCircle } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Link2, Skull, CheckCircle, X } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { Card, CardContent } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { EvolvedCatchSprite } from '../components/pokemon/EvolvedCatchSprite'
 import { useAppStore } from '../store/appStore'
 import { getGameById } from '../data/games'
+import { usePokemonSpecies, useEvolutionChain, usePokemonByName } from '../api/pokeapi'
+import { resolveEvolutionAtLevel } from '../utils/evolutionUtils'
 import type { SoulLink, Catch, Player } from '../types'
 
 type FilterMode = 'all' | 'active' | 'broken'
 
-function LinkRow({ link, catches, players, routeName, levelCap }: {
+function LinkedPokemonMiniCard({ c, player, levelCap, isBroken }: {
+  c: Catch
+  player: Player | undefined
+  levelCap: number | null
+  isBroken: boolean
+}) {
+  const navigate = useNavigate()
+  const isDead = c.status === 'dead'
+
+  const { data: speciesData } = usePokemonSpecies(c.pokemon_id ?? 0)
+  const { data: chainData } = useEvolutionChain(speciesData?.evolution_chain?.url ?? '')
+  const evolvedName = useMemo(() => {
+    if (!chainData || levelCap === null || !c.pokemon_name) return ''
+    const resolved = resolveEvolutionAtLevel(chainData.chain, c.pokemon_name, levelCap)
+    return resolved !== c.pokemon_name ? resolved : ''
+  }, [chainData, levelCap, c.pokemon_name])
+  const { data: evolvedData } = usePokemonByName(evolvedName)
+  const displayName = evolvedData?.name ?? c.pokemon_name
+
+  return (
+    <div
+      onClick={() => displayName && navigate('/learnset', { state: { pokemon: displayName } })}
+      className={`flex flex-col items-center gap-1 p-2 rounded-lg border w-[7rem] cursor-pointer transition-opacity hover:opacity-75 ${
+        isDead ? 'border-red-800/40 bg-red-900/10' : 'border-border bg-elevated'
+      }`}
+      style={player ? { borderLeftColor: player.color, borderLeftWidth: 2 } : undefined}
+    >
+      <div className="relative">
+        <EvolvedCatchSprite
+          pokemonId={c.pokemon_id}
+          pokemonName={c.pokemon_name}
+          levelCap={levelCap}
+          size={48}
+          grayscale={isDead}
+        />
+        {isDead && (
+          <Skull className="absolute -top-1 -right-1 w-3.5 h-3.5 text-red-400" />
+        )}
+      </div>
+      <div className="text-center">
+        <p className="text-xs font-medium text-text-primary capitalize">
+          {c.pokemon_name ?? 'Unknown'}
+        </p>
+        {player && (
+          <span className="text-[10px] px-1 rounded mt-0.5" style={{ color: player.color }}>
+            {player.name}
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function LinkRow({ link, catches, players, routeName, levelCap, onMarkDeath }: {
   link: SoulLink
   catches: Catch[]
   players: Player[]
   routeName: string
   levelCap: number | null
+  onMarkDeath?: () => void
 }) {
   const linkedCatches = link.catch_ids
     .map((cid) => catches.find((c) => c.id === cid))
@@ -37,11 +94,15 @@ function LinkRow({ link, catches, players, routeName, levelCap }: {
             )}
           </div>
 
+          {/* Shared nickname */}
+          {linkedCatches[0]?.nickname && (
+            <p className="text-xs font-semibold text-text-primary mb-2">"{linkedCatches[0].nickname}"</p>
+          )}
+
           {/* Pokémon cards side by side */}
           <div className="flex items-center gap-3 flex-wrap">
             {linkedCatches.map((c, idx) => {
               const player = players.find((p) => p.id === c.player_id)
-              const isDead = c.status === 'dead'
               return (
                 <div key={c.id} className="flex items-center gap-2">
                   {idx > 0 && (
@@ -49,41 +110,7 @@ function LinkRow({ link, catches, players, routeName, levelCap }: {
                       <Link2 className="w-3 h-3" />
                     </div>
                   )}
-                  <div
-                    className={`flex flex-col items-center gap-1 p-2 rounded-lg border ${
-                      isDead ? 'border-red-800/40 bg-red-900/10' : 'border-border bg-elevated'
-                    }`}
-                    style={player ? { borderLeftColor: player.color, borderLeftWidth: 2 } : undefined}
-                  >
-                    <div className="relative">
-                      <EvolvedCatchSprite
-                        pokemonId={c.pokemon_id}
-                        pokemonName={c.pokemon_name}
-                        levelCap={levelCap}
-                        size={48}
-                        grayscale={isDead}
-                      />
-                      {isDead && (
-                        <Skull className="absolute -top-1 -right-1 w-3.5 h-3.5 text-red-400" />
-                      )}
-                    </div>
-                    <div className="text-center">
-                      <p className="text-xs font-medium text-text-primary">
-                        {c.nickname ?? c.pokemon_name ?? 'Unknown'}
-                      </p>
-                      {c.nickname && c.pokemon_name && (
-                        <p className="text-[10px] text-text-muted capitalize">{c.pokemon_name}</p>
-                      )}
-                      <div className="flex flex-col items-center gap-0.5 mt-0.5">
-                        <span className="text-[10px] text-text-secondary">Lv. {levelCap ?? 5}</span>
-                        {player && (
-                          <span className="text-[10px] px-1 rounded" style={{ color: player.color }}>
-                            {player.name}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                  <LinkedPokemonMiniCard c={c} player={player} levelCap={levelCap} isBroken={isBroken} />
                 </div>
               )
             })}
@@ -91,15 +118,20 @@ function LinkRow({ link, catches, players, routeName, levelCap }: {
 
           {/* Broken note */}
           {isBroken && (
-            <p className="text-xs text-red-400/80 mt-2 flex items-center gap-1">
-              <Skull className="w-3 h-3" />
+            <p className="mt-2 w-full py-1.5 text-[11px] rounded border border-transparent text-red-400/70 flex items-center justify-center gap-1">
+              <Skull className="w-2.5 h-2.5" />
               All Pokémon in this soul link are unusable going forward.
-              {linkedCatches.find((c) => c.died_route) && (
-                <span className="text-text-muted ml-1">
-                  Broke on: {linkedCatches.find((c) => c.died_route)?.died_route?.replace(/-/g, ' ')}
-                </span>
-              )}
             </p>
+          )}
+
+          {/* Mark Death button for active links */}
+          {!isBroken && onMarkDeath && (
+            <button
+              onClick={onMarkDeath}
+              className="mt-2 w-full py-1.5 text-[11px] rounded border border-red-800/30 text-red-400/70 hover:bg-red-900/20 hover:text-red-300 transition-colors flex items-center justify-center gap-1"
+            >
+              <Skull className="w-2.5 h-2.5" /> Mark Death
+            </button>
           )}
         </CardContent>
       </Card>
@@ -107,15 +139,121 @@ function LinkRow({ link, catches, players, routeName, levelCap }: {
   )
 }
 
+// ── Mark Death Modal (route-only, link pre-selected) ──────────────────────────
+
+interface DeathModalProps {
+  link: SoulLink
+  catches: Catch[]
+  players: Player[]
+  levelCap: number | null
+  onConfirm: (catchId: string, route: string) => Promise<void>
+  onClose: () => void
+}
+
+function DeathModal({ link, catches, players, levelCap, onConfirm, onClose }: DeathModalProps) {
+  const [route, setRoute] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const members = link.catch_ids
+    .map((cid) => catches.find((c) => c.id === cid))
+    .filter(Boolean) as Catch[]
+
+  async function handleConfirm() {
+    if (!route.trim()) return
+    setSaving(true)
+    const aliveCatch = members.find((c) => c.status === 'alive')
+    if (aliveCatch) await onConfirm(aliveCatch.id, route.trim())
+    setSaving(false)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div
+        className="bg-card border border-border rounded-lg w-full max-w-xs mx-4 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-4 pt-4 pb-2">
+          <p className="text-sm font-semibold text-text-primary">Mark Death</p>
+          <button onClick={onClose} className="text-text-muted hover:text-text-primary">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="px-4 pb-4 space-y-3">
+          {/* Show linked members */}
+          <div className="flex items-center gap-2 justify-center py-1">
+            {members.map((m, idx) => {
+              const player = players.find((p) => p.id === m.player_id)
+              return (
+                <div key={m.id} className="flex items-center gap-1.5">
+                  {idx > 0 && <Link2 className="w-3 h-3 text-text-muted" />}
+                  <div className="flex flex-col items-center">
+                    <EvolvedCatchSprite
+                      pokemonId={m.pokemon_id}
+                      pokemonName={m.pokemon_name}
+                      levelCap={levelCap}
+                      size={32}
+                    />
+                    <span className="text-[9px] text-text-muted mt-0.5">
+                      {m.nickname ?? m.pokemon_name ?? '?'}
+                    </span>
+                    {player && (
+                      <span className="text-[9px]" style={{ color: player.color }}>{player.name}</span>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          <input
+            type="text"
+            value={route}
+            onChange={(e) => setRoute(e.target.value)}
+            placeholder="e.g. Route 4, Victory Road"
+            autoFocus
+            className="w-full text-xs bg-elevated border border-border rounded px-3 py-2 text-text-primary placeholder:text-text-muted focus:outline-none focus:border-border-light"
+          />
+
+          <div className="flex gap-2">
+            <button
+              onClick={onClose}
+              className="flex-1 py-2 text-xs rounded border border-border text-text-secondary hover:bg-elevated transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirm}
+              disabled={!route.trim() || saving}
+              className="flex-1 py-2 text-xs rounded bg-red-900/60 border border-red-700/40 text-red-300 hover:bg-red-900/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {saving ? 'Saving…' : 'Confirm Death'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Main View ─────────────────────────────────────────────────────────────────
+
 export function SoulLinkView() {
-  const { activeRun, catches, soulLinks, players, levelCap } = useAppStore()
+  const { activeRun, activeRunId, catches, soulLinks, players, levelCap, loadRunData } = useAppStore()
   const [filter, setFilter] = useState<FilterMode>('all')
+  const [deathLink, setDeathLink] = useState<SoulLink | null>(null)
 
   if (!activeRun) return <div className="p-6 text-text-muted">No active run</div>
 
   const gameInfo = getGameById(activeRun.game)
 
+  const renamedEncounters = activeRun.ruleset.renamedEncounters ?? {}
+  const addedEncounters = activeRun.ruleset.addedEncounters ?? []
+
   function getRouteName(routeId: string): string {
+    if (renamedEncounters[routeId]) return renamedEncounters[routeId]
+    const custom = addedEncounters.find((r) => r.id === routeId)
+    if (custom) return custom.name
     return gameInfo?.routes.find((r) => r.id === routeId)?.name ?? routeId.replace(/-/g, ' ')
   }
 
@@ -128,6 +266,12 @@ export function SoulLinkView() {
     : broken
 
   const stats = { total: soulLinks.length, active: active.length, broken: broken.length }
+
+  async function handleMarkDeath(catchId: string, route: string) {
+    await window.api.catches.kill(catchId, route)
+    if (activeRunId) await loadRunData(activeRunId)
+    setDeathLink(null)
+  }
 
   return (
     <div className="p-4 space-y-4">
@@ -186,7 +330,7 @@ export function SoulLinkView() {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))' }}>
           {filtered.map((link) => (
             <LinkRow
               key={link.id}
@@ -195,9 +339,22 @@ export function SoulLinkView() {
               players={players}
               routeName={getRouteName(link.route_id)}
               levelCap={levelCap}
+              onMarkDeath={link.status === 'active' ? () => setDeathLink(link) : undefined}
             />
           ))}
         </div>
+      )}
+
+      {/* Death Modal */}
+      {deathLink && (
+        <DeathModal
+          link={deathLink}
+          catches={catches}
+          players={players}
+          levelCap={levelCap}
+          onConfirm={handleMarkDeath}
+          onClose={() => setDeathLink(null)}
+        />
       )}
     </div>
   )

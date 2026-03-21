@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Shield, Sword, AlertTriangle, CheckCircle } from 'lucide-react'
+import { AlertTriangle, CheckCircle } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card'
 import { TypeBadge } from '../components/pokemon/TypeBadge'
@@ -7,7 +7,7 @@ import { PokemonSprite } from '../components/pokemon/PokemonSprite'
 import { useAppStore } from '../store/appStore'
 import { getGameById } from '../data/games'
 import { usePokemonById } from '../api/pokeapi'
-import type { GymLeader, Catch, Player } from '../types'
+import type { Catch } from '../types'
 import type { GymLeader as GymLeaderType } from '../data/games'
 
 function LevelStatus({ level, cap }: { level: number; cap: number }) {
@@ -43,7 +43,7 @@ export function BattlePrep() {
   if (!activeRun) return <div className="p-6 text-text-muted">No active run</div>
 
   const gameInfo = getGameById(activeRun.game)
-  const gyms = gameInfo?.gymLeaders ?? []
+  const gyms = [...(gameInfo?.gymLeaders ?? [])].sort((a, b) => a.levelCap - b.levelCap)
   const modifier = activeRun.ruleset.trainerLevelModifier ?? 100
   const adjustedCap = (levelCap: number) => Math.round(levelCap * modifier / 100)
 
@@ -60,7 +60,7 @@ export function BattlePrep() {
       {/* Gym list */}
       <div className="w-64 border-r border-border flex flex-col shrink-0">
         <div className="p-3 border-b border-border">
-          <h3 className="text-sm font-semibold text-text-secondary">Gyms</h3>
+          <h3 className="text-sm font-semibold text-text-secondary">Battles</h3>
         </div>
         <div className="flex-1 overflow-y-auto">
           {gyms.map((gym, idx) => (
@@ -74,7 +74,13 @@ export function BattlePrep() {
               }`}
             >
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-text-primary">{gym.name}</span>
+                <span className={`text-sm font-medium ${
+                  gym.kind === 'champion' ? 'text-accent-gold' :
+                  gym.kind === 'elite4' ? 'text-purple-400' :
+                  gym.kind === 'rival' ? 'text-blue-400' :
+                  gym.kind === 'boss' ? 'text-red-400' :
+                  'text-text-primary'
+                }`}>{gym.name}</span>
                 <span className="text-xs font-bold text-accent-gold">Lv.{adjustedCap(gym.levelCap)}</span>
               </div>
               <span className="text-xs text-text-muted">{gym.city}</span>
@@ -99,7 +105,14 @@ export function BattlePrep() {
                 <div className="flex items-start justify-between">
                   <div>
                     <h2 className="text-lg font-bold text-text-primary">{selectedGym.name}</h2>
-                    <p className="text-sm text-text-muted">{selectedGym.city} Gym</p>
+                    <p className="text-sm text-text-muted">
+                      {selectedGym.kind === 'rival' ? `Rival — ${selectedGym.city}`
+                        : selectedGym.kind === 'boss' ? selectedGym.city
+                        : selectedGym.kind === 'elite4' ? `Elite Four — ${selectedGym.city}`
+                        : selectedGym.kind === 'champion' ? `Champion — ${selectedGym.city}`
+                        : selectedGym.kind === 'other' ? selectedGym.city
+                        : `${selectedGym.city} Gym`}
+                    </p>
                     <p className="text-sm text-accent-gold">{selectedGym.badge}</p>
                   </div>
                   <div className="text-right">
@@ -130,8 +143,8 @@ export function BattlePrep() {
               {players.map((player) => {
                 const party = getPartyForPlayer(player.id)
                 const cap = adjustedCap(selectedGym.levelCap)
-                const overCap = party.filter(() => displayLevel > cap).length
-                const atCap = party.filter(() => displayLevel === cap).length
+                const overCap = party.filter((c) => c.level > cap).length
+                const atCap = party.filter((c) => c.level === cap).length
 
                 return (
                   <Card key={player.id}>

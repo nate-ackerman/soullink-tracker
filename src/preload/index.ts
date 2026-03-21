@@ -47,6 +47,12 @@ const api = {
     create: (data: any) => ipcRenderer.invoke('notes:create', data),
     update: (id: string, content: string) => ipcRenderer.invoke('notes:update', id, content),
     delete: (id: string) => ipcRenderer.invoke('notes:delete', id)
+  },
+  battles: {
+    getByRun: (runId: string) => ipcRenderer.invoke('battles:getByRun', runId),
+    create: (data: any) => ipcRenderer.invoke('battles:create', data),
+    update: (id: string, data: any) => ipcRenderer.invoke('battles:update', id, data),
+    delete: (id: string) => ipcRenderer.invoke('battles:delete', id)
   }
 }
 

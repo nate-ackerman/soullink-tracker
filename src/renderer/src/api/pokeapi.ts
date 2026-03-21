@@ -166,9 +166,7 @@ const GEN_VERSION_GROUPS: Record<number, string[]> = {
 }
 
 export function usePokemonMoves(pokemonId: number, generation: number) {
-  const validGroups = Object.entries(GEN_VERSION_GROUPS)
-    .filter(([gen]) => parseInt(gen) <= generation)
-    .flatMap(([, groups]) => groups)
+  const exactGroups = GEN_VERSION_GROUPS[generation] ?? []
 
   return useQuery({
     queryKey: ['pokemon-moves', pokemonId, generation],
@@ -178,18 +176,24 @@ export function usePokemonMoves(pokemonId: number, generation: number) {
 
       for (const moveEntry of data.moves) {
         const relevantDetails = moveEntry.version_group_details.filter((d) =>
-          validGroups.includes(d.version_group.name)
+          exactGroups.includes(d.version_group.name)
         )
         if (relevantDetails.length === 0) continue
 
-        // Prefer the latest generation's data
-        const latest = relevantDetails[relevantDetails.length - 1]
-        moves.push({
-          name: moveEntry.move.name,
-          url: moveEntry.move.url,
-          learnMethod: latest.move_learn_method.name,
-          levelLearnedAt: latest.level_learned_at
-        })
+        // Add one entry per unique learn method (a move can be both level-up AND TM)
+        const seen = new Set<string>()
+        for (const detail of relevantDetails) {
+          const method = detail.move_learn_method.name
+          if (!seen.has(method)) {
+            seen.add(method)
+            moves.push({
+              name: moveEntry.move.name,
+              url: moveEntry.move.url,
+              learnMethod: method,
+              levelLearnedAt: detail.level_learned_at
+            })
+          }
+        }
       }
 
       return moves

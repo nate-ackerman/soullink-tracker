@@ -10,6 +10,7 @@ export function Layout() {
         <TopBar />
         <main className="flex-1 overflow-auto">
           <Outlet />
+          <div className="h-5 shrink-0" />
         </main>
       </div>
     </div>

@@ -22,6 +22,7 @@ export function CatchCalc() {
   const [pokemonQuery, setPokemonQuery] = useState('')
   const [selectedPokemon, setSelectedPokemon] = useState('')
   const [showDropdown, setShowDropdown] = useState(false)
+  const [highlightedIndex, setHighlightedIndex] = useState(-1)
   const [wildLevel, setWildLevel] = useState(() => String(levelCap ?? 5))
 
   // Sync wild level when global level cap changes
@@ -115,21 +116,45 @@ export function CatchCalc() {
               label="Pokémon Species"
               placeholder="Search..."
               value={pokemonQuery}
-              onChange={(e) => { setPokemonQuery(e.target.value); setShowDropdown(true) }}
+              onChange={(e) => { setPokemonQuery(e.target.value); setShowDropdown(true); setHighlightedIndex(-1) }}
               onFocus={() => setShowDropdown(true)}
-              onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
+              onBlur={() => setTimeout(() => { setShowDropdown(false); setHighlightedIndex(-1) }, 200)}
+              onKeyDown={(e) => {
+                const results = searchResults?.results ?? []
+                if (!showDropdown || results.length === 0 || pokemonQuery.length < 2) return
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault()
+                  setHighlightedIndex((i) => Math.min(i + 1, results.length - 1))
+                } else if (e.key === 'ArrowUp') {
+                  e.preventDefault()
+                  setHighlightedIndex((i) => Math.max(i - 1, -1))
+                } else if (e.key === 'Enter') {
+                  e.preventDefault()
+                  if (highlightedIndex >= 0) {
+                    const p = results[highlightedIndex]
+                    setSelectedPokemon(p.name)
+                    setPokemonQuery(p.name)
+                    setShowDropdown(false)
+                    setHighlightedIndex(-1)
+                  }
+                } else if (e.key === 'Escape') {
+                  setShowDropdown(false)
+                  setHighlightedIndex(-1)
+                }
+              }}
             />
             {showDropdown && searchResults && searchResults.results.length > 0 && pokemonQuery.length >= 2 && (
               <div className="absolute z-50 w-full mt-1 bg-elevated border border-border rounded shadow-xl max-h-40 overflow-y-auto">
-                {searchResults.results.map((p) => (
+                {searchResults.results.map((p, i) => (
                   <button
                     key={p.name}
                     onMouseDown={() => {
                       setSelectedPokemon(p.name)
                       setPokemonQuery(p.name)
                       setShowDropdown(false)
+                      setHighlightedIndex(-1)
                     }}
-                    className="w-full text-left px-3 py-2 text-sm text-text-primary hover:bg-card capitalize"
+                    className={`w-full text-left px-3 py-2 text-sm text-text-primary capitalize ${i === highlightedIndex ? 'bg-card' : 'hover:bg-card'}`}
                   >
                     {p.name}
                   </button>
@@ -173,7 +198,7 @@ export function CatchCalc() {
             </div>
             <div>
               <Input
-                label={hasTurnBalls ? 'Turn number' : 'Turn number'}
+                label="Turn number"
                 type="number"
                 min="1"
                 max="99"
@@ -202,11 +227,14 @@ export function CatchCalc() {
                 max="100"
                 value={hpPercent}
                 onChange={(e) => setHpPercent(e.target.value)}
-                className="h-2 accent-accent-red"
+                className="h-2 accent-accent-red px-0 py-0 border-0 bg-transparent"
               />
               <div className="flex justify-between text-xs text-text-muted mt-1">
                 <span>1%</span>
-                <span>{hpPct}%</span>
+                <span className="flex flex-col items-center gap-0.5">
+                  <span className="text-accent-red font-semibold text-sm leading-none">{hpPct}%</span>
+                  <span className="text-[10px]">current</span>
+                </span>
                 <span>100%</span>
               </div>
             </div>

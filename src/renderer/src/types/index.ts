@@ -126,3 +126,19 @@ export interface CreateNoteInput {
   player_id?: string
   content: string
 }
+
+export interface PartySnapshot {
+  player_id: string
+  slots: { slot: number; catch_id: string }[]
+}
+
+export interface BattleRecord {
+  id: string
+  run_id: string
+  gym_leader_name: string
+  level_cap: number
+  party_snapshot: PartySnapshot[]
+  outcome: 'pending' | 'victory'
+  created_at: string
+  completed_at: string | null
+}

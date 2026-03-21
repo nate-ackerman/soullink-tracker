@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Run, Player, Catch, SoulLink, PartySlot, Note } from '../types'
+import type { Run, Player, Catch, SoulLink, PartySlot, Note, BattleRecord } from '../types'
 
 interface AppState {
   // Active run data
@@ -10,6 +10,7 @@ interface AppState {
   soulLinks: SoulLink[]
   partySlots: PartySlot[]
   notes: Note[]
+  battleRecords: BattleRecord[]
 
   // UI state
   activePlayerId: string | null
@@ -24,6 +25,7 @@ interface AppState {
   refreshCatches(): Promise<void>
   refreshParty(): Promise<void>
   refreshNotes(): Promise<void>
+  refreshBattles(): Promise<void>
   setActiveRoute(routeId: string | null): void
   setActivePlayerId(playerId: string | null): void
   setSidebarCollapsed(collapsed: boolean): void
@@ -33,10 +35,6 @@ interface AppState {
   getSoulLinksByRoute(routeId: string): SoulLink[]
   getPartyByPlayer(playerId: string): Catch[]
   getDeadByPlayer(playerId: string): Catch[]
-  // Returns all catches for a player that are part of an active soul link (available for party)
-  getActiveSoulLinkCatches(playerId: string): Catch[]
-  // Returns the active soul link containing a given catch (or null)
-  getSoulLinkForCatch(catchId: string): SoulLink | null
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -47,6 +45,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   soulLinks: [],
   partySlots: [],
   notes: [],
+  battleRecords: [],
 
   activePlayerId: null,
   activeRoute: null,
@@ -58,18 +57,19 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (runId) {
       get().loadRunData(runId)
     } else {
-      set({ activeRun: null, players: [], catches: [], soulLinks: [], partySlots: [], notes: [] })
+      set({ activeRun: null, players: [], catches: [], soulLinks: [], partySlots: [], notes: [], battleRecords: [] })
     }
   },
 
   loadRunData: async (runId) => {
     try {
-      const [run, players, catches, soulLinks, notes] = await Promise.all([
+      const [run, players, catches, soulLinks, notes, battleRecords] = await Promise.all([
         window.api.runs.get(runId),
         window.api.players.getByRun(runId),
         window.api.catches.getByRun(runId),
         window.api.soulLinks.getByRun(runId),
-        window.api.notes.getByRun(runId)
+        window.api.notes.getByRun(runId),
+        window.api.battles.getByRun(runId)
       ])
 
       // Load all party slots for all players
@@ -77,7 +77,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const partySlotArrays = await Promise.all(partySlotPromises)
       const partySlots = partySlotArrays.flat()
 
-      set({ activeRun: run, players, catches, soulLinks, partySlots, notes })
+      set({ activeRun: run, players, catches, soulLinks, partySlots, notes, battleRecords })
     } catch (err) {
       console.error('Failed to load run data:', err)
     }
@@ -118,6 +118,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
+  refreshBattles: async () => {
+    const { activeRunId } = get()
+    if (!activeRunId) return
+    try {
+      const battleRecords = await window.api.battles.getByRun(activeRunId)
+      set({ battleRecords })
+    } catch (err) {
+      console.error('Failed to refresh battles:', err)
+    }
+  },
+
   setActiveRoute: (routeId) => set({ activeRoute: routeId }),
   setActivePlayerId: (playerId) => set({ activePlayerId: playerId }),
   setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
@@ -143,20 +154,4 @@ export const useAppStore = create<AppState>((set, get) => ({
   getDeadByPlayer: (playerId) => {
     return get().catches.filter((c) => c.player_id === playerId && c.status === 'dead')
   },
-
-  getActiveSoulLinkCatches: (playerId) => {
-    const { catches, soulLinks } = get()
-    const activeLinkCatchIds = new Set(
-      soulLinks
-        .filter((sl) => sl.status === 'active')
-        .flatMap((sl) => sl.catch_ids)
-    )
-    return catches.filter(
-      (c) => c.player_id === playerId && c.status === 'alive' && activeLinkCatchIds.has(c.id)
-    )
-  },
-
-  getSoulLinkForCatch: (catchId) => {
-    return get().soulLinks.find((sl) => sl.catch_ids.includes(catchId)) ?? null
-  }
 }))

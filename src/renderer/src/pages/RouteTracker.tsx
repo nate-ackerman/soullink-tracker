@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Search, Plus, Link2, Skull, XCircle, CheckCircle, Clock, Pencil, RotateCcw, X, Settings2 } from 'lucide-react'
+import { Search, Plus, Link2, Skull, XCircle, CheckCircle, Clock, Pencil, RotateCcw, X, Settings2, Lock } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
@@ -50,7 +50,16 @@ function PokemonAutocomplete({
 }) {
   const [query, setQuery] = useState(value)
   const [showDropdown, setShowDropdown] = useState(false)
+  const [highlightedIndex, setHighlightedIndex] = useState(-1)
   const { data } = usePokemonSearch(query)
+
+  function selectResult(p: { name: string; url: string }) {
+    const id = parseInt(p.url.split('/').filter(Boolean).pop() ?? '0', 10)
+    setQuery(p.name)
+    setShowDropdown(false)
+    setHighlightedIndex(-1)
+    onChange(p.name, id || undefined)
+  }
 
   return (
     <div className="relative">
@@ -61,23 +70,36 @@ function PokemonAutocomplete({
         onChange={(e) => {
           setQuery(e.target.value)
           setShowDropdown(true)
+          setHighlightedIndex(-1)
           onChange(e.target.value)
         }}
         onFocus={() => setShowDropdown(true)}
-        onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
+        onBlur={() => setTimeout(() => { setShowDropdown(false); setHighlightedIndex(-1) }, 200)}
+        onKeyDown={(e) => {
+          const results = data?.results ?? []
+          if (!showDropdown || results.length === 0 || query.length < 2) return
+          if (e.key === 'ArrowDown') {
+            e.preventDefault()
+            setHighlightedIndex((i) => Math.min(i + 1, results.length - 1))
+          } else if (e.key === 'ArrowUp') {
+            e.preventDefault()
+            setHighlightedIndex((i) => Math.max(i - 1, -1))
+          } else if (e.key === 'Enter') {
+            e.preventDefault()
+            if (highlightedIndex >= 0) selectResult(results[highlightedIndex])
+          } else if (e.key === 'Escape') {
+            setShowDropdown(false)
+            setHighlightedIndex(-1)
+          }
+        }}
       />
       {showDropdown && data && data.results.length > 0 && query.length >= 2 && (
         <div className="absolute z-50 w-full mt-1 bg-elevated border border-border rounded shadow-xl max-h-48 overflow-y-auto">
-          {data.results.map((p) => (
+          {data.results.map((p, i) => (
             <button
               key={p.name}
-              onMouseDown={() => {
-                const id = parseInt(p.url.split('/').filter(Boolean).pop() ?? '0', 10)
-                setQuery(p.name)
-                setShowDropdown(false)
-                onChange(p.name, id || undefined)
-              }}
-              className="w-full text-left px-3 py-2 text-sm text-text-primary hover:bg-card capitalize"
+              onMouseDown={() => selectResult(p)}
+              className={`w-full text-left px-3 py-2 text-sm text-text-primary capitalize ${i === highlightedIndex ? 'bg-card' : 'hover:bg-card'}`}
             >
               {p.name}
             </button>
@@ -380,9 +402,9 @@ function ManageEncountersModal({
   }
 
   return (
-    <Modal open={open} onOpenChange={(o) => !o && onClose()} title="Manage Encounters">
-      <div className="space-y-3">
-        <div className="relative">
+    <Modal open={open} onOpenChange={(o) => !o && onClose()} title="Manage Encounters" size="lg">
+      <div className="flex flex-col gap-3 flex-1 min-h-0">
+        <div className="relative shrink-0">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" />
           <input
             className="w-full bg-input border border-border rounded pl-8 pr-3 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-border-light"
@@ -392,7 +414,7 @@ function ManageEncountersModal({
           />
         </div>
 
-        <div className="max-h-56 overflow-y-auto border border-border rounded divide-y divide-border">
+        <div className="flex-1 min-h-0 overflow-y-auto border border-border rounded divide-y divide-border">
           {filtered.map((route) => {
             const isHidden = localHidden.includes(route.id)
             const displayName = localRenamed[route.id] ?? route.name
@@ -461,7 +483,7 @@ function ManageEncountersModal({
           </div>
         )}
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 shrink-0">
           <input
             className="flex-1 bg-input border border-border rounded px-2 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:outline-none"
             placeholder="Add custom encounter (e.g. Hidden Grotto)"
@@ -474,7 +496,7 @@ function ManageEncountersModal({
           </Button>
         </div>
 
-        <div className="flex gap-2 pt-1 border-t border-border">
+        <div className="flex gap-2 pt-1 border-t border-border shrink-0">
           <Button variant="secondary" onClick={onClose} className="flex-1">Cancel</Button>
           <Button onClick={handleSave} loading={saving} className="flex-1">Save Changes</Button>
         </div>
@@ -507,7 +529,7 @@ function RouteStatusBadge({ status }: { status: RouteStatus }) {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function RouteTracker() {
-  const { activeRun, players, catches, soulLinks, loadRunData, activeRunId, levelCap } = useAppStore()
+  const { activeRun, players, catches, soulLinks, loadRunData, activeRunId, levelCap, battleRecords } = useAppStore()
   const [selectedRoute, setSelectedRoute] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [logModal, setLogModal] = useState<{ open: boolean; playerId: string }>({ open: false, playerId: '' })
@@ -517,13 +539,16 @@ export function RouteTracker() {
   const [manageModal, setManageModal] = useState(false)
   const [linkNickname, setLinkNickname] = useState('')
   const [savingNick, setSavingNick] = useState(false)
+  const [clearConfirm, setClearConfirm] = useState(false)
+  const [clearing, setClearing] = useState(false)
 
-  // Sync nickname field when navigating between routes
+  // Sync nickname field and reset clear confirm when navigating between routes
   useEffect(() => {
     const existing = catches
       .filter((c) => c.route_id === selectedRoute && c.status !== 'failed')
       .find((c) => c.nickname)?.nickname ?? ''
     setLinkNickname(existing)
+    setClearConfirm(false)
   }, [selectedRoute, catches])
 
   if (!activeRun) return <div className="p-6 text-text-muted">No active run</div>
@@ -547,6 +572,69 @@ export function RouteTracker() {
   const filteredRoutes = routes.filter((r) =>
     r.name.toLowerCase().includes(searchQuery.toLowerCase())
   )
+
+  // Checkpoint-gated accessibility (only for games with locations data on gymLeaders)
+  const sortedLeaders = [...(gameInfo?.gymLeaders ?? [])].sort((a, b) => a.levelCap - b.levelCap)
+  const hasGating = sortedLeaders.some((g) => (g.locations?.length ?? 0) > 0)
+  const completedCount = battleRecords.filter((b) => b.outcome === 'victory').length
+
+  function getAccess(routeId: string): 'accessible' | 'completed' | 'inaccessible' | 'ungated' {
+    if (!hasGating) return 'ungated'
+    for (let i = 0; i < sortedLeaders.length; i++) {
+      if ((sortedLeaders[i].locations ?? []).some((l) => l.id === routeId)) {
+        if (i < completedCount) return 'completed'
+        if (i === completedCount) return 'accessible'
+        return 'inaccessible'
+      }
+    }
+    return 'ungated' // custom encounter or not in any checkpoint
+  }
+
+  // Accessible = not upcoming AND no catch logged yet
+  // Complete = not upcoming AND a catch (or fail) has been logged
+  const accessibleRoutes = filteredRoutes.filter((r) => getAccess(r.id) !== 'inaccessible' && getRouteStatus(r.id) === 'empty')
+  const completedRoutes = filteredRoutes.filter((r) => getAccess(r.id) !== 'inaccessible' && getRouteStatus(r.id) !== 'empty')
+  const inaccessibleRoutes = filteredRoutes.filter((r) => getAccess(r.id) === 'inaccessible')
+  const ungatedRoutes: RouteInfo[] = [] // absorbed into accessible/completed above
+
+  function renderRouteBtn(route: RouteInfo, muted = false) {
+    const status = getRouteStatus(route.id)
+    const isSelected = selectedRoute === route.id
+    const playerDots = status !== 'empty'
+      ? [...new Set(catches.filter((c) => c.route_id === route.id).map((c) => c.player_id))]
+      : []
+    return (
+      <button
+        key={route.id}
+        onClick={() => setSelectedRoute(route.id)}
+        className={`w-full flex items-center gap-2 px-3 py-2.5 text-left transition-colors border-l-2 ${
+          isSelected
+            ? 'bg-elevated border-accent-teal text-text-primary'
+            : muted
+            ? 'border-transparent text-text-muted hover:bg-elevated/50 hover:text-text-secondary'
+            : 'border-transparent hover:bg-elevated/50 text-text-secondary hover:text-text-primary'
+        }`}
+      >
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-medium truncate">{route.name}</p>
+          <RouteStatusBadge status={status} />
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          {playerDots.map((pid) => {
+            const p = players.find((pl) => pl.id === pid)
+            const hasFailed = catches.some((c) => c.player_id === pid && c.route_id === route.id && c.status === 'failed')
+            return p ? (
+              <div
+                key={pid}
+                className={`w-2 h-2 rounded-full ${hasFailed ? 'opacity-30' : ''}`}
+                style={{ backgroundColor: p.color }}
+              />
+            ) : null
+          })}
+        </div>
+      </button>
+    )
+  }
 
   function getRouteStatus(routeId: string): RouteStatus {
     const rc = catches.filter((c) => c.route_id === routeId)
@@ -574,6 +662,21 @@ export function RouteTracker() {
       ruleset: { ...activeRun.ruleset, ...updates }
     })
     await refresh()
+  }
+
+  async function handleClearRoute() {
+    if (!selectedRoute) return
+    setClearing(true)
+    try {
+      const routeCatchIds = catches.filter((c) => c.route_id === selectedRoute).map((c) => c.id)
+      for (const id of routeCatchIds) await window.api.catches.delete(id)
+      const link = soulLinks.find((sl) => sl.route_id === selectedRoute)
+      if (link) await window.api.soulLinks.delete(link.id)
+      await refresh()
+    } finally {
+      setClearing(false)
+      setClearConfirm(false)
+    }
   }
 
   async function handleSaveNickname() {
@@ -615,43 +718,37 @@ export function RouteTracker() {
           </div>
         </div>
         <ScrollArea className="flex-1">
-          {filteredRoutes.map((route) => {
-            const status = getRouteStatus(route.id)
-            const isSelected = selectedRoute === route.id
-            const playerDots = status !== 'empty'
-              ? [...new Set(catches.filter((c) => c.route_id === route.id).map((c) => c.player_id))]
-              : []
-
-            return (
-              <button
-                key={route.id}
-                onClick={() => setSelectedRoute(route.id)}
-                className={`w-full flex items-center gap-2 px-3 py-2.5 text-left transition-colors border-l-2 ${
-                  isSelected
-                    ? 'bg-elevated border-accent-teal text-text-primary'
-                    : 'border-transparent hover:bg-elevated/50 text-text-secondary hover:text-text-primary'
-                }`}
-              >
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium truncate">{route.name}</p>
-                  <RouteStatusBadge status={status} />
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  {playerDots.map((pid) => {
-                    const p = players.find((pl) => pl.id === pid)
-                    const hasFailed = catches.some((c) => c.player_id === pid && c.route_id === route.id && c.status === 'failed')
-                    return p ? (
-                      <div
-                        key={pid}
-                        className={`w-2 h-2 rounded-full ${hasFailed ? 'opacity-30' : ''}`}
-                        style={{ backgroundColor: p.color }}
-                      />
-                    ) : null
-                  })}
-                </div>
-              </button>
-            )
-          })}
+          {hasGating ? (
+            <>
+              {accessibleRoutes.length > 0 && (
+                <>
+                  <div className="px-3 py-1 text-[9px] uppercase tracking-wider font-semibold text-accent-teal bg-accent-teal/5 border-b border-border">
+                    Accessible
+                  </div>
+                  {accessibleRoutes.map((r) => renderRouteBtn(r))}
+                </>
+              )}
+              {completedRoutes.length > 0 && (
+                <>
+                  <div className="px-3 py-1 text-[9px] uppercase tracking-wider font-semibold text-text-muted bg-elevated/40 border-b border-border">
+                    Complete
+                  </div>
+                  {completedRoutes.map((r) => renderRouteBtn(r, true))}
+                </>
+              )}
+              {inaccessibleRoutes.length > 0 && (
+                <>
+                  <div className="px-3 py-1 text-[9px] uppercase tracking-wider font-semibold text-text-muted border-b border-border flex items-center gap-1">
+                    <Lock className="w-2.5 h-2.5" /> Upcoming
+                  </div>
+                  {inaccessibleRoutes.map((r) => renderRouteBtn(r, true))}
+                </>
+              )}
+              {ungatedRoutes.map((r) => renderRouteBtn(r))}
+            </>
+          ) : (
+            filteredRoutes.map((r) => renderRouteBtn(r))
+          )}
         </ScrollArea>
       </div>
 
@@ -667,6 +764,36 @@ export function RouteTracker() {
             <div className="flex items-center gap-3">
               <h2 className="text-base font-semibold text-text-primary capitalize">{selectedRouteName}</h2>
               <RouteStatusBadge status={selectedRouteStatus} />
+              {routeCatches.length > 0 && (
+                <div className="ml-auto flex items-center gap-1.5">
+                  {clearConfirm ? (
+                    <>
+                      <span className="text-xs text-text-muted">Clear all catches?</span>
+                      <button
+                        onClick={handleClearRoute}
+                        disabled={clearing}
+                        className="text-xs px-2 py-1 rounded border border-red-500/50 text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-40"
+                      >
+                        {clearing ? 'Clearing…' : 'Yes, clear'}
+                      </button>
+                      <button
+                        onClick={() => setClearConfirm(false)}
+                        className="text-xs px-2 py-1 rounded border border-border text-text-muted hover:text-text-secondary transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => setClearConfirm(true)}
+                      className="flex items-center gap-1 text-xs text-text-muted hover:text-text-secondary transition-colors"
+                      title="Clear catches for this route"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" /> Clear
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Status banner */}
@@ -770,12 +897,9 @@ export function RouteTracker() {
                             grayscale={playerCatch.status === 'dead'}
                           />
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-text-primary truncate">
-                              {playerCatch.nickname ?? playerCatch.pokemon_name ?? 'Unknown'}
+                            <p className="text-sm font-medium text-text-primary truncate capitalize">
+                              {playerCatch.pokemon_name ?? 'Unknown'}
                             </p>
-                            {playerCatch.nickname && playerCatch.pokemon_name && (
-                              <p className="text-[10px] text-text-muted capitalize">{playerCatch.pokemon_name}</p>
-                            )}
                             <div className="flex items-center gap-1.5 mt-0.5">
                               <span className="text-[10px] text-text-secondary">Lv. {levelCap ?? 5}</span>
                               <StatusBadge status={playerCatch.status} />

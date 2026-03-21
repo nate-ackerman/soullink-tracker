@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Plus, X, Link2, AlertTriangle } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useQueries } from '@tanstack/react-query'
@@ -13,7 +14,7 @@ import { usePokemonById, usePokemonSpecies, useEvolutionChain, usePokemonByName 
 import type { PokemonData, PokemonSpeciesData, EvolutionChainData } from '../api/pokeapi'
 import { formatPokemonName } from '../utils/cn'
 import { resolveEvolutionAtLevel } from '../utils/evolutionUtils'
-import type { Catch, Player, SoulLink } from '../types'
+import type { Catch, Player, SoulLink, BattleRecord } from '../types'
 
 // Normal/Flying Pokémon are treated as Flying primary for type-overlap purposes
 function getEffectivePrimaryType(data: PokemonData): string | null {
@@ -278,8 +279,6 @@ function PartySlotCard({
   levelCap,
 }: {
   catch_?: Catch
-  player: Player
-  runId: string
   onRemove: () => void
   evolvedTo?: PokemonData
   levelCap: number | null
@@ -295,13 +294,17 @@ function PartySlotCard({
     )
   }
 
+  const navigate = useNavigate()
   const displayId = evolvedTo?.id ?? catch_.pokemon_id
   const displayName = evolvedTo?.name ?? catch_.pokemon_name
 
   return (
-    <div className="relative rounded-lg border border-accent-teal/30 bg-card p-2 flex flex-col items-center gap-1">
+    <div
+      onClick={() => navigate('/learnset', { state: { pokemon: displayName ?? catch_.pokemon_name } })}
+      className="relative rounded-lg border border-accent-teal/30 bg-card p-2 flex flex-col items-center gap-1 cursor-pointer hover:opacity-75 transition-opacity"
+    >
       <button
-        onClick={onRemove}
+        onClick={(e) => { e.stopPropagation(); onRemove() }}
         className="absolute top-0.5 right-0.5 p-0.5 rounded text-text-muted hover:text-red-400 hover:bg-elevated transition-colors"
         title="Remove soul link from party"
       >
@@ -373,8 +376,6 @@ function PlayerPartyCard({
               <PartySlotCard
                 key={slot}
                 catch_={catch_}
-                player={player}
-                runId={runId}
                 onRemove={() => catch_ && onRemove(catch_.id)}
                 evolvedTo={evolutions[slot] ?? undefined}
                 levelCap={levelCap}
@@ -678,17 +679,38 @@ function BestCombosSection({
 
   const allLoaded = pokemonIds.length > 0 && pokemonIds.every((id) => effectiveBstMap.has(id))
 
-  function scoreCombo(links: SoulLink[]): { total: number; avg: number; weighted: number } {
+  function scoreCombo(links: SoulLink[]): { total: number; avg: number; weighted: number; worstWeighted: number } {
     const ids = links.flatMap((l) =>
       l.catch_ids.map((cid) => catches.find((c) => c.id === cid)?.pokemon_id ?? 0)
     )
     const bsts = ids.map((id) => effectiveBstMap.get(id)).filter((v): v is number => v !== undefined)
     const total = bsts.reduce((a, b) => a + b, 0)
     const avg = bsts.length > 0 ? Math.round(total / bsts.length) : 0
-    // Weighted avg rewards larger teams: avgBST × √(numLinks / 6)
-    // 4 legendaries (avg 580) scores ~474; 6 middles (avg 460) scores 460; 2 legendaries scores ~335
     const weighted = Math.round(avg * Math.sqrt(links.length / 6))
-    return { total, avg, weighted }
+
+    // Worst-player weighted BST: maximize the weakest link
+    const playerBsts = new Map<string, number[]>()
+    for (const link of links) {
+      for (const cid of link.catch_ids) {
+        const catch_ = catches.find((c) => c.id === cid)
+        if (!catch_?.pokemon_id) continue
+        const bst = effectiveBstMap.get(catch_.pokemon_id)
+        if (bst === undefined) continue
+        if (!playerBsts.has(catch_.player_id)) playerBsts.set(catch_.player_id, [])
+        playerBsts.get(catch_.player_id)!.push(bst)
+      }
+    }
+    let worstWeighted = 0
+    if (playerBsts.size > 0) {
+      let min = Infinity
+      for (const pbsts of playerBsts.values()) {
+        const pavg = pbsts.reduce((a, b) => a + b, 0) / pbsts.length
+        min = Math.min(min, Math.round(pavg * Math.sqrt(pbsts.length / 6)))
+      }
+      worstWeighted = min === Infinity ? 0 : min
+    }
+
+    return { total, avg, weighted, worstWeighted }
   }
 
   function isValidCombo(links: SoulLink[]): boolean {
@@ -725,23 +747,22 @@ function BestCombosSection({
     return true
   }
 
-  const { topCombos, topWeightedCombos } = useMemo(() => {
-    if (!allLoaded || availableLinks.length === 0) return { topCombos: [], topWeightedCombos: [] }
+  const { topCombos, topWeightedCombos, topMinWeightedCombos } = useMemo(() => {
+    if (!allLoaded || availableLinks.length === 0) return { topCombos: [], topWeightedCombos: [], topMinWeightedCombos: [] }
 
     const slotsUsed = inPartyLinks.length
     const slotsLeft = Math.max(0, 6 - slotsUsed)
 
-    let scored: { additions: SoulLink[]; combined: SoulLink[]; total: number; avg: number; weighted: number }[]
+    let scored: { additions: SoulLink[]; combined: SoulLink[]; total: number; avg: number; weighted: number; worstWeighted: number }[]
 
     if (maxSharedTypeCount === 0 && maxSameTeamTypeCount === 0) {
       const k = Math.min(slotsLeft > 0 ? slotsLeft : 6, availableLinks.length)
-      if (k === 0 || availableLinks.length < k) return { topCombos: [], topWeightedCombos: [] }
+      if (k === 0 || availableLinks.length < k) return { topCombos: [], topWeightedCombos: [], topMinWeightedCombos: [] }
       scored = getCombinations(availableLinks, k).map((additions) => {
         const combined = [...inPartyLinks, ...additions]
         return { additions, combined, ...scoreCombo(combined) }
       })
     } else {
-      // Type limit active — enumerate additions of size 1..slotsLeft, keep valid combos
       scored = []
       const maxK = Math.min(slotsLeft > 0 ? slotsLeft : 6, availableLinks.length)
       for (let k = maxK; k >= 1; k--) {
@@ -757,6 +778,7 @@ function BestCombosSection({
     return {
       topCombos: [...scored].sort((a, b) => b.total - a.total).slice(0, 3),
       topWeightedCombos: [...scored].sort((a, b) => b.weighted - a.weighted).slice(0, 3),
+      topMinWeightedCombos: [...scored].sort((a, b) => b.worstWeighted - a.worstWeighted).slice(0, 3),
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allLoaded, availableLinks, inPartyLinks, effectiveBstMap, primaryTypeMap, catches, maxSharedTypeCount, maxSameTeamTypeCount])
@@ -877,14 +899,164 @@ function BestCombosSection({
           )}
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            Top Party Combos
+            <span className="text-xs text-text-muted font-normal">(strengthen the weakest player)</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loadingOrEmpty(topMinWeightedCombos.length === 0) ?? (
+            <div className="space-y-2">
+              {topMinWeightedCombos.map((combo, rank) =>
+                renderComboRow(combo, rank, 'Worst', combo.worstWeighted, `Overall ${combo.weighted}`, '')
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
+  )
+}
+
+// ── Past Battle Parties ───────────────────────────────────────────────────────
+
+function PastBattlePartiesSection({
+  battleRecords,
+  catches,
+  players,
+  soulLinks,
+  runId,
+  onLoaded,
+}: {
+  battleRecords: BattleRecord[]
+  catches: Catch[]
+  players: Player[]
+  soulLinks: SoulLink[]
+  runId: string
+  onLoaded: () => void
+}) {
+  const [loading, setLoading] = useState<string | null>(null)
+  const victories = [...battleRecords].filter((b) => b.outcome === 'victory')
+  if (victories.length === 0) return null
+
+  // Canonical key for a party snapshot — sorted so order doesn't matter
+  function snapshotKey(battle: BattleRecord): string {
+    return battle.party_snapshot
+      .map((ps) => `${ps.player_id}:${[...ps.slots].sort((a, b) => a.slot - b.slot).map((s) => s.catch_id).join(',')}`)
+      .sort()
+      .join('|')
+  }
+
+  // Group battles by identical party, preserving chronological order of first use
+  const groups: { key: string; battles: BattleRecord[] }[] = []
+  const seen = new Map<string, number>()
+  for (const battle of victories) {
+    const key = snapshotKey(battle)
+    if (seen.has(key)) {
+      groups[seen.get(key)!].battles.push(battle)
+    } else {
+      seen.set(key, groups.length)
+      groups.push({ key, battles: [battle] })
+    }
+  }
+
+  async function loadParty(battle: BattleRecord) {
+    setLoading(battle.id)
+    try {
+      for (const player of players) {
+        await window.api.party.clearAll(runId, player.id)
+      }
+      for (const ps of battle.party_snapshot) {
+        for (const { slot, catch_id } of ps.slots) {
+          const c = catches.find((x) => x.id === catch_id)
+          if (c && c.status === 'alive') {
+            await window.api.party.setSlot(runId, ps.player_id, slot, catch_id)
+          }
+        }
+      }
+      onLoaded()
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Past Battle Parties</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {[...groups].reverse().map(({ key, battles }) => {
+          const representative = battles[0]
+          return (
+            <div key={key} className="flex items-center gap-3 p-2 rounded-lg bg-elevated border border-border">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-text-primary">
+                  {battles.map((b) => b.gym_leader_name).join(', ')}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                {(() => {
+                  const allCatchIds = representative.party_snapshot.flatMap((ps) => ps.slots.map((s) => s.catch_id))
+                  const assigned = new Set<string>()
+                  const groups: string[][] = []
+                  for (const cid of allCatchIds) {
+                    if (assigned.has(cid)) continue
+                    const link = soulLinks.find((sl) => sl.catch_ids.includes(cid))
+                    if (link) {
+                      const group = link.catch_ids.filter((id) => allCatchIds.includes(id))
+                      groups.push(group)
+                      group.forEach((id) => assigned.add(id))
+                    } else {
+                      groups.push([cid])
+                      assigned.add(cid)
+                    }
+                  }
+                  return groups.map((group, gi) => (
+                    <div key={gi} className="flex items-center gap-1">
+                      {gi > 0 && <span className="text-text-muted text-[10px] mx-0.5">·</span>}
+                      {group.map((cid, ci) => {
+                        const c = catches.find((x) => x.id === cid)
+                        const player = c ? players.find((p) => p.id === c.player_id) : undefined
+                        return c ? (
+                          <div key={cid} className="flex items-center gap-0.5" title={`${player?.name ?? ''}: ${c.nickname ?? c.pokemon_name ?? '?'}`}>
+                            {ci > 0 && <Link2 className="w-2.5 h-2.5 text-accent-teal" />}
+                            <EvolvedCatchSprite
+                              pokemonId={c.pokemon_id}
+                              pokemonName={c.pokemon_name}
+                              levelCap={null}
+                              size={24}
+                              grayscale={c.status === 'dead'}
+                            />
+                          </div>
+                        ) : null
+                      })}
+                    </div>
+                  ))
+                })()}
+              </div>
+              <button
+                onClick={() => loadParty(representative)}
+                disabled={loading === representative.id}
+                className="text-xs px-2 py-1 rounded border border-border text-text-muted hover:text-accent-teal hover:border-accent-teal transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+              >
+                {loading === representative.id ? '…' : 'Load'}
+              </button>
+            </div>
+          )
+        })}
+      </CardContent>
+    </Card>
   )
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function PartyTracker() {
-  const { activeRun, players, catches, partySlots, soulLinks, loadRunData, activeRunId, levelCap } = useAppStore()
+  const { activeRun, players, catches, partySlots, soulLinks, loadRunData, activeRunId, levelCap, battleRecords } = useAppStore()
   const [pickerOpen, setPickerOpen] = useState(false)
 
   if (!activeRun) return <div className="p-6 text-text-muted">No active run</div>
@@ -904,10 +1076,6 @@ export function PartyTracker() {
       const ps = slots.find((s) => s.slot === slot)
       return ps ? catches.find((c) => c.id === ps.catch_id) : undefined
     })
-  }
-
-  function getLinkForCatch(catchId: string): SoulLink | undefined {
-    return soulLinks.find((sl) => sl.catch_ids.includes(catchId))
   }
 
   const activeLinks = soulLinks.filter((sl) => sl.status === 'active')
@@ -978,13 +1146,16 @@ export function PartyTracker() {
                 return (
                   <div key={sl.id} className="flex items-center gap-3">
                     <Link2 className="w-3.5 h-3.5 text-accent-teal shrink-0" />
+                    {linkedCatches[0]?.nickname && (
+                      <span className="text-xs font-semibold text-text-primary shrink-0">"{linkedCatches[0].nickname}"</span>
+                    )}
                     {linkedCatches.map((c, i) => {
                       const p = players.find((pl) => pl.id === c.player_id)
                       return (
                         <div key={c.id} className="flex items-center gap-1.5">
                           {i > 0 && <span className="text-text-muted text-xs">↔</span>}
                           <PokemonSprite pokemonId={c.pokemon_id} pokemonName={c.pokemon_name} size={22} />
-                          <span className="text-xs text-text-primary">{formatPokemonName(c.nickname ?? c.pokemon_name)}</span>
+                          <span className="text-xs text-text-secondary capitalize">{c.pokemon_name ?? '?'}</span>
                           {p && <span className="text-[10px]" style={{ color: p.color }}>{p.name}</span>}
                         </div>
                       )
@@ -1007,6 +1178,16 @@ export function PartyTracker() {
         maxSharedTypeCount={activeRun.ruleset.maxSharedTypeCount ?? 0}
         maxSameTeamTypeCount={activeRun.ruleset.maxSameTeamTypeCount ?? 0}
         levelCap={levelCap}
+      />
+
+      {/* Past battle parties */}
+      <PastBattlePartiesSection
+        battleRecords={battleRecords}
+        catches={catches}
+        players={players}
+        soulLinks={soulLinks}
+        runId={activeRun.id}
+        onLoaded={handleAdded}
       />
 
       <SoulLinkPicker

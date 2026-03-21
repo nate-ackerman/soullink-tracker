@@ -10,7 +10,6 @@ function DeadPokemonCard({ catch_, player, linkedPartners, levelCap }: {
   catch_: Catch
   player?: Player
   linkedPartners: Catch[]
-  allCatches: Catch[]
   levelCap: number | null
 }) {
   return (
@@ -172,7 +171,7 @@ export function Graveyard() {
           {/* Sort */}
           <select
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
+            onChange={(e) => setSortBy(e.target.value as 'date' | 'level' | 'route')}
             className="bg-input border border-border rounded px-2 py-1.5 text-xs text-text-secondary focus:outline-none"
           >
             <option value="date">Sort: Date</option>
@@ -197,7 +196,6 @@ export function Graveyard() {
               catch_={c}
               player={players.find((p) => p.id === c.player_id)}
               linkedPartners={getLinkedPartners(c)}
-              allCatches={catches}
               levelCap={levelCap}
             />
           ))}

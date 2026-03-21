@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 
 import type {
-  Run, Player, Catch, SoulLink, PartySlot, Note,
+  Run, Player, Catch, SoulLink, PartySlot, Note, BattleRecord,
   CreateRunInput, CreatePlayerInput, CreateCatchInput, CreateSoulLinkInput, CreateNoteInput
 } from './types'
 
@@ -44,6 +44,12 @@ interface API {
     getByRun(runId: string): Promise<Note[]>
     create(data: CreateNoteInput): Promise<Note>
     update(id: string, content: string): Promise<Note>
+    delete(id: string): Promise<void>
+  }
+  battles: {
+    getByRun(runId: string): Promise<BattleRecord[]>
+    create(data: { run_id: string; gym_leader_name: string; level_cap: number; party_snapshot: any }): Promise<BattleRecord>
+    update(id: string, data: { outcome: string }): Promise<BattleRecord>
     delete(id: string): Promise<void>
   }
 }
