@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Play, Trash2, Calendar, Users, ChevronRight, Gamepad2, Upload, AlertCircle } from 'lucide-react'
+import { Plus, Play, Trash2, Calendar, Users, ChevronRight, Gamepad2, Upload, AlertCircle, ToggleLeft, ToggleRight } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { Card, CardContent } from '../components/ui/Card'
 import { Modal } from '../components/ui/Modal'
@@ -40,7 +40,7 @@ interface WizardData {
   ruleset: Ruleset
 }
 
-function RunCard({ run, onSelect, onDelete }: { run: Run; onSelect: () => void; onDelete: () => void }) {
+function RunCard({ run, onSelect, onDelete, onToggleStatus }: { run: Run; onSelect: () => void; onDelete: () => void; onToggleStatus: () => void }) {
   const statusVariant: 'success' | 'danger' | 'info' =
     run.status === 'active' ? 'success' : run.status === 'failed' ? 'danger' : 'info'
   return (
@@ -74,6 +74,14 @@ function RunCard({ run, onSelect, onDelete }: { run: Run; onSelect: () => void; 
           <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
             <Button variant="ghost" size="sm" onClick={onSelect}>
               <Play className="w-3.5 h-3.5" /> Open
+            </Button>
+            <Button
+              variant="ghost" size="sm"
+              onClick={(e) => { e.stopPropagation(); onToggleStatus() }}
+              title={run.status === 'active' ? 'Mark as failed' : 'Mark as active'}
+              className={run.status === 'active' ? 'text-text-muted hover:text-orange-400' : 'text-text-muted hover:text-green-400'}
+            >
+              {run.status === 'active' ? <ToggleRight className="w-3.5 h-3.5" /> : <ToggleLeft className="w-3.5 h-3.5" />}
             </Button>
             <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); onDelete() }} className="text-red-400 hover:text-red-300">
               <Trash2 className="w-3.5 h-3.5" />
@@ -151,6 +159,12 @@ export function Home() {
   async function handleDeleteRun(id: string) {
     if (!confirm('Delete this run? This cannot be undone.')) return
     await window.api.runs.delete(id)
+    loadRuns()
+  }
+
+  async function handleToggleRunStatus(run: Run) {
+    const next = run.status === 'active' ? 'failed' : 'active'
+    await window.api.runs.update(run.id, { status: next })
     loadRuns()
   }
 
@@ -267,6 +281,7 @@ export function Home() {
                   run={run}
                   onSelect={() => handleSelectRun(run)}
                   onDelete={() => handleDeleteRun(run.id)}
+                  onToggleStatus={() => handleToggleRunStatus(run)}
                 />
               ))}
             </AnimatePresence>

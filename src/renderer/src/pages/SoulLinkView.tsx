@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Link2, Skull, CheckCircle, X } from 'lucide-react'
+import { Link2, Skull, CheckCircle, X, Pencil, Check } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { Card, CardContent } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
@@ -13,14 +13,25 @@ import type { SoulLink, Catch, Player } from '../types'
 
 type FilterMode = 'all' | 'active' | 'broken'
 
-function LinkedPokemonMiniCard({ c, player, levelCap, isBroken }: {
+function LinkedPokemonMiniCard({ c, player, levelCap, isBroken, onNicknameChange }: {
   c: Catch
   player: Player | undefined
   levelCap: number | null
   isBroken: boolean
+  onNicknameChange: () => void
 }) {
   const navigate = useNavigate()
   const isDead = c.status === 'dead'
+  const [editingNick, setEditingNick] = useState(false)
+  const [nickValue, setNickValue] = useState(c.nickname ?? '')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  async function saveNickname() {
+    const trimmed = nickValue.trim()
+    await window.api.catches.update(c.id, { nickname: trimmed || null })
+    setEditingNick(false)
+    onNicknameChange()
+  }
 
   const { data: speciesData } = usePokemonSpecies(c.pokemon_id ?? 0)
   const { data: chainData } = useEvolutionChain(speciesData?.evolution_chain?.url ?? '')
@@ -34,13 +45,15 @@ function LinkedPokemonMiniCard({ c, player, levelCap, isBroken }: {
 
   return (
     <div
-      onClick={() => displayName && navigate('/learnset', { state: { pokemon: displayName } })}
-      className={`flex flex-col items-center gap-1 p-2 rounded-lg border w-[7rem] cursor-pointer transition-opacity hover:opacity-75 ${
+      className={`flex flex-col items-center gap-1 p-2 rounded-lg border w-[7rem] ${
         isDead ? 'border-red-800/40 bg-red-900/10' : 'border-border bg-elevated'
       }`}
       style={player ? { borderLeftColor: player.color, borderLeftWidth: 2 } : undefined}
     >
-      <div className="relative">
+      <div
+        className="relative cursor-pointer transition-opacity hover:opacity-75"
+        onClick={() => displayName && navigate('/learnset', { state: { pokemon: displayName } })}
+      >
         <EvolvedCatchSprite
           pokemonId={c.pokemon_id}
           pokemonName={c.pokemon_name}
@@ -52,27 +65,50 @@ function LinkedPokemonMiniCard({ c, player, levelCap, isBroken }: {
           <Skull className="absolute -top-1 -right-1 w-3.5 h-3.5 text-red-400" />
         )}
       </div>
-      <div className="text-center">
+      <div className="text-center w-full">
         <p className="text-xs font-medium text-text-primary capitalize">
           {c.pokemon_name ?? 'Unknown'}
         </p>
         {player && (
-          <span className="text-[10px] px-1 rounded mt-0.5" style={{ color: player.color }}>
+          <span className="text-[10px] px-1 rounded" style={{ color: player.color }}>
             {player.name}
           </span>
+        )}
+        {editingNick ? (
+          <div className="flex items-center gap-0.5 mt-1" onClick={(e) => e.stopPropagation()}>
+            <input
+              ref={inputRef}
+              autoFocus
+              value={nickValue}
+              onChange={(e) => setNickValue(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') saveNickname(); if (e.key === 'Escape') setEditingNick(false) }}
+              className="w-full text-[10px] bg-elevated border border-accent-teal rounded px-1 py-0.5 text-text-primary focus:outline-none min-w-0"
+              placeholder="Nickname"
+            />
+            <button onClick={saveNickname} className="text-accent-teal shrink-0"><Check className="w-3 h-3" /></button>
+          </div>
+        ) : (
+          <button
+            onClick={(e) => { e.stopPropagation(); setNickValue(c.nickname ?? ''); setEditingNick(true) }}
+            className="flex items-center gap-0.5 mx-auto mt-0.5 text-[10px] text-text-muted hover:text-text-secondary transition-colors"
+          >
+            <Pencil className="w-2.5 h-2.5 shrink-0" />
+            <span className="truncate max-w-[5rem]">{c.nickname ?? 'nickname'}</span>
+          </button>
         )}
       </div>
     </div>
   )
 }
 
-function LinkRow({ link, catches, players, routeName, levelCap, onMarkDeath }: {
+function LinkRow({ link, catches, players, routeName, levelCap, onMarkDeath, onNicknameChange }: {
   link: SoulLink
   catches: Catch[]
   players: Player[]
   routeName: string
   levelCap: number | null
   onMarkDeath?: () => void
+  onNicknameChange: () => void
 }) {
   const linkedCatches = link.catch_ids
     .map((cid) => catches.find((c) => c.id === cid))
@@ -110,7 +146,7 @@ function LinkRow({ link, catches, players, routeName, levelCap, onMarkDeath }: {
                       <Link2 className="w-3 h-3" />
                     </div>
                   )}
-                  <LinkedPokemonMiniCard c={c} player={player} levelCap={levelCap} isBroken={isBroken} />
+                  <LinkedPokemonMiniCard c={c} player={player} levelCap={levelCap} isBroken={isBroken} onNicknameChange={onNicknameChange} />
                 </div>
               )
             })}
@@ -340,6 +376,7 @@ export function SoulLinkView() {
               routeName={getRouteName(link.route_id)}
               levelCap={levelCap}
               onMarkDeath={link.status === 'active' ? () => setDeathLink(link) : undefined}
+              onNicknameChange={() => activeRunId && loadRunData(activeRunId)}
             />
           ))}
         </div>

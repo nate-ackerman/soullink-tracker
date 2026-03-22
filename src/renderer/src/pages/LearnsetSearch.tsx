@@ -221,13 +221,19 @@ export function LearnsetSearch() {
                 ))}
               </div>
             </div>
-            <div className="ml-auto grid grid-cols-3 gap-4 text-center">
+            <div className="ml-auto grid grid-cols-4 gap-3 text-center">
               {pokemonData.stats.slice(0, 6).map((s) => (
                 <div key={s.stat.name}>
                   <p className="text-sm font-bold text-text-primary">{s.base_stat}</p>
                   <p className="text-[10px] text-text-muted uppercase">{s.stat.name.replace('special-', 'sp.').replace('-', ' ')}</p>
                 </div>
               ))}
+              <div className="border-l border-border pl-3">
+                <p className="text-sm font-bold text-accent-teal">
+                  {pokemonData.stats.slice(0, 6).reduce((sum, s) => sum + s.base_stat, 0)}
+                </p>
+                <p className="text-[10px] text-text-muted uppercase">BST</p>
+              </div>
             </div>
           </div>
         )}

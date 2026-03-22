@@ -367,9 +367,18 @@ export function RunDashboard() {
   }
 
   async function handleCompleteBattle() {
-    if (!pendingBattle) return
+    if (!pendingBattle || !activeRunId) return
     await window.api.battles.update(pendingBattle.id, { outcome: 'victory' })
     await refreshBattles()
+    // Auto-fail the run if every party slot is dead after the battle
+    const allPartyDead = partySlots.length > 0 && partySlots.every((ps) => {
+      const c = catches.find((x) => x.id === ps.catch_id)
+      return c?.status === 'dead'
+    })
+    if (allPartyDead) {
+      await window.api.runs.update(activeRunId, { status: 'failed' })
+      if (activeRunId) await loadRunData(activeRunId)
+    }
   }
 
   async function handleMarkDeath(catchId: string, route: string) {
@@ -548,55 +557,70 @@ export function RunDashboard() {
             </button>
           )}
 
-          {/* Past battles */}
-          {pastBattles.length > 0 && (
+          {/* All battles list */}
+          {(battleRecords.length > 0 || gymLeaders.length > completedCount) && (
             <Card>
               <CardContent className="py-3">
-                <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">Past Battles</p>
-                <div className="space-y-2">
-                  {[...pastBattles].reverse().map((battle) => (
-                    <div key={battle.id} className="flex items-start gap-3 px-1">
-                      <div className="whitespace-nowrap shrink-0">
-                        <span className="text-xs text-text-secondary font-medium">{battle.gym_leader_name}</span>
-                        <span className="text-[10px] text-text-muted ml-2">Lv. {battle.level_cap}</span>
-                      </div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {(() => {
-                          const allCatchIds = battle.party_snapshot.flatMap((ps) => ps.slots.map((s) => s.catch_id))
-                          const assigned = new Set<string>()
-                          const groups: string[][] = []
-                          for (const cid of allCatchIds) {
-                            if (assigned.has(cid)) continue
-                            const link = soulLinks.find((sl) => sl.catch_ids.includes(cid))
-                            if (link) {
-                              const group = link.catch_ids.filter((id) => allCatchIds.includes(id))
-                              groups.push(group)
-                              group.forEach((id) => assigned.add(id))
-                            } else {
-                              groups.push([cid])
-                              assigned.add(cid)
-                            }
-                          }
-                          return groups.map((group, gi) => (
+                <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">Battle Log</p>
+                <div className="space-y-1">
+                  {/* Recorded battles, most recent first */}
+                  {[...battleRecords].reverse().map((battle) => {
+                    const allCatchIds = battle.party_snapshot.flatMap((ps) => ps.slots.map((s) => s.catch_id))
+                    const assigned = new Set<string>()
+                    const groups: string[][] = []
+                    for (const cid of allCatchIds) {
+                      if (assigned.has(cid)) continue
+                      const link = soulLinks.find((sl) => sl.catch_ids.includes(cid))
+                      if (link) {
+                        const group = link.catch_ids.filter((id) => allCatchIds.includes(id))
+                        groups.push(group)
+                        group.forEach((id) => assigned.add(id))
+                      } else {
+                        groups.push([cid])
+                        assigned.add(cid)
+                      }
+                    }
+                    return (
+                      <div key={battle.id} className="flex items-center gap-2 px-1 py-1 rounded">
+                        <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{
+                          backgroundColor: battle.outcome === 'victory' ? '#22c55e' : '#ecc94b'
+                        }} />
+                        <div className="min-w-[5rem] shrink-0">
+                          <span className="text-xs text-text-secondary font-medium">{battle.gym_leader_name}</span>
+                          <span className="text-[10px] text-text-muted ml-1.5">Lv.{battle.level_cap}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {groups.map((group, gi) => (
                             <div key={gi} className="flex items-center gap-0.5">
                               {group.map((cid, ci) => {
                                 const c = catches.find((x) => x.id === cid)
                                 return c ? (
                                   <div key={cid} className="flex items-center gap-0.5">
-                                    {ci > 0 && <Link2 className="w-2.5 h-2.5 text-accent-teal" />}
-                                    <EvolvedCatchSprite
-                                      pokemonId={c.pokemon_id}
-                                      pokemonName={c.pokemon_name}
-                                      levelCap={null}
-                                      size={20}
-                                      grayscale={c.status === 'dead'}
-                                    />
+                                    {ci > 0 && <Link2 className="w-2 h-2 text-accent-teal" />}
+                                    <EvolvedCatchSprite pokemonId={c.pokemon_id} pokemonName={c.pokemon_name} levelCap={null} size={18} grayscale={c.status === 'dead'} />
                                   </div>
                                 ) : null
                               })}
                             </div>
-                          ))
-                        })()}
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })}
+                  {/* Divider between recorded and upcoming */}
+                  {battleRecords.length > 0 && gymLeaders.length > completedCount && (
+                    <div className="border-t border-border my-1" />
+                  )}
+                  {/* Remaining upcoming fights */}
+                  {gymLeaders.slice(completedCount).map((leader, i) => (
+                    <div key={`upcoming-${i}`} className="flex items-center gap-2 px-1 py-1 opacity-80">
+                      <div className="w-1.5 h-1.5 rounded-full shrink-0 border border-border-light" />
+                      <div className="min-w-[5rem] shrink-0">
+                        <span className="text-xs text-text-muted font-medium">{leader.name}</span>
+                        <span className="text-[10px] text-text-muted ml-1.5">Lv.{adjustedCap(leader.levelCap)}</span>
+                      </div>
+                      <div className="flex gap-1">
+                        {leader.types.map((t) => <TypeBadge key={t} type={t} size="sm" />)}
                       </div>
                     </div>
                   ))}
