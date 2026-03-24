@@ -25,6 +25,26 @@ function runMigrations(): void {
   } catch (_) {
     // Column already exists
   }
+  // Add nickname column to soul_links
+  try {
+    database.exec('ALTER TABLE soul_links ADD COLUMN nickname TEXT DEFAULT NULL')
+  } catch (_) {
+    // Column already exists
+  }
+  // Backfill soul_links.nickname from catches for any links that still have NULL nickname.
+  // Picks the first non-null nickname found among the linked catches.
+  const nullLinks = database.prepare("SELECT id, catch_ids FROM soul_links WHERE nickname IS NULL").all() as { id: string; catch_ids: string }[]
+  for (const link of nullLinks) {
+    let catchIds: string[] = []
+    try { catchIds = JSON.parse(link.catch_ids) } catch (_) { continue }
+    for (const cid of catchIds) {
+      const row = database.prepare('SELECT nickname FROM catches WHERE id = ? AND nickname IS NOT NULL').get(cid) as { nickname: string } | undefined
+      if (row?.nickname) {
+        database.prepare('UPDATE soul_links SET nickname = ? WHERE id = ?').run(row.nickname, link.id)
+        break
+      }
+    }
+  }
   // Drop old statuses no longer used in catches
   // (no-op: SQLite doesn't support DROP COLUMN before 3.35, just leave boxed/released as dead-equivalent)
 }
@@ -115,6 +135,15 @@ function initializeSchema(): void {
       outcome TEXT NOT NULL DEFAULT 'pending',
       created_at TEXT NOT NULL,
       completed_at TEXT,
+      FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS saved_parties (
+      id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      party_snapshot TEXT NOT NULL,
+      created_at TEXT NOT NULL,
       FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
     );
   `)
@@ -407,9 +436,14 @@ export function dbCreateSoulLink(data: { run_id: string; route_id: string; catch
   return { ...link, catch_ids: JSON.parse(link.catch_ids) }
 }
 
-export function dbUpdateSoulLink(id: string, catchIds: string[]) {
+export function dbUpdateSoulLink(id: string, data: { catchIds?: string[]; nickname?: string | null }) {
   const database = getDb()
-  database.prepare('UPDATE soul_links SET catch_ids = ? WHERE id = ?').run(JSON.stringify(catchIds), id)
+  if (data.catchIds !== undefined) {
+    database.prepare('UPDATE soul_links SET catch_ids = ? WHERE id = ?').run(JSON.stringify(data.catchIds), id)
+  }
+  if (data.nickname !== undefined) {
+    database.prepare('UPDATE soul_links SET nickname = ? WHERE id = ?').run(data.nickname, id)
+  }
   const link = database.prepare('SELECT * FROM soul_links WHERE id = ?').get(id) as any
   return { ...link, catch_ids: JSON.parse(link.catch_ids) }
 }
@@ -502,7 +536,8 @@ export function dbAddSoulLinkToParty(runId: string, catchId: string): any[] {
   return created
 }
 
-// Removes ALL members of a soul link from all players' parties.
+// Removes ALL members of a soul link from all players' parties, then compacts
+// each affected player's remaining slots to fill from left (slot 0) with no gaps.
 export function dbRemoveSoulLinkFromParty(runId: string, catchId: string): void {
   const database = getDb()
 
@@ -512,13 +547,29 @@ export function dbRemoveSoulLinkFromParty(runId: string, catchId: string): void 
     return ids.includes(catchId)
   })
 
+  // Collect which player IDs are affected before deleting
+  const affectedPlayerIds = new Set<string>()
   if (link) {
     const catchIds: string[] = JSON.parse(link.catch_ids)
     for (const cid of catchIds) {
+      const row = database.prepare('SELECT player_id FROM party_slots WHERE catch_id = ?').get(cid) as any
+      if (row) affectedPlayerIds.add(row.player_id)
       database.prepare('DELETE FROM party_slots WHERE catch_id = ?').run(cid)
     }
   } else {
+    const row = database.prepare('SELECT player_id FROM party_slots WHERE catch_id = ?').get(catchId) as any
+    if (row) affectedPlayerIds.add(row.player_id)
     database.prepare('DELETE FROM party_slots WHERE catch_id = ?').run(catchId)
+  }
+
+  // Compact: renumber each affected player's remaining slots 0, 1, 2, …
+  for (const playerId of affectedPlayerIds) {
+    const remaining = database
+      .prepare('SELECT id, slot FROM party_slots WHERE run_id = ? AND player_id = ? ORDER BY slot ASC')
+      .all(runId, playerId) as { id: string; slot: number }[]
+    remaining.forEach(({ id }, i) => {
+      database.prepare('UPDATE party_slots SET slot = ? WHERE id = ?').run(i, id)
+    })
   }
 }
 
@@ -535,8 +586,12 @@ export function dbExportRun(runId: string) {
   const soulLinks = soulLinksRaw.map((l) => ({ ...l, catch_ids: JSON.parse(l.catch_ids) }))
   const partySlots = database.prepare('SELECT * FROM party_slots WHERE run_id = ?').all(runId)
   const notes = database.prepare('SELECT * FROM notes WHERE run_id = ? ORDER BY created_at').all(runId)
+  const battleRecordsRaw = database.prepare('SELECT * FROM battle_records WHERE run_id = ? ORDER BY created_at').all(runId) as any[]
+  const battleRecords = battleRecordsRaw.map((b) => ({ ...b, party_snapshot: JSON.parse(b.party_snapshot) }))
+  const savedPartiesRaw = database.prepare('SELECT * FROM saved_parties WHERE run_id = ? ORDER BY created_at').all(runId) as any[]
+  const savedParties = savedPartiesRaw.map((p) => ({ ...p, party_snapshot: JSON.parse(p.party_snapshot) }))
 
-  return { version: 1, exported_at: new Date().toISOString(), run, players, catches, soul_links: soulLinks, party_slots: partySlots, notes }
+  return { version: 1, exported_at: new Date().toISOString(), run, players, catches, soul_links: soulLinks, party_slots: partySlots, notes, battle_records: battleRecords, saved_parties: savedParties }
 }
 
 export function dbImportRun(data: any) {
@@ -599,6 +654,31 @@ export function dbImportRun(data: any) {
         n.player_id ? remap(n.player_id) : null,
         n.content, n.created_at, n.updated_at ?? now
       )
+    }
+
+    for (const b of ((data.battle_records ?? []) as any[])) {
+      const snapshot = (Array.isArray(b.party_snapshot) ? b.party_snapshot : JSON.parse(b.party_snapshot))
+        .map((entry: any) => ({
+          player_id: remap(entry.player_id),
+          slots: entry.slots.map((s: any) => ({ slot: s.slot, catch_id: remap(s.catch_id) }))
+        }))
+      database.prepare(
+        'INSERT INTO battle_records (id, run_id, gym_leader_name, level_cap, party_snapshot, outcome, created_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run(
+        remap(b.id), newRunId, b.gym_leader_name, b.level_cap,
+        JSON.stringify(snapshot), b.outcome ?? 'pending', b.created_at, b.completed_at ?? null
+      )
+    }
+
+    for (const sp of ((data.saved_parties ?? []) as any[])) {
+      const snapshot = (Array.isArray(sp.party_snapshot) ? sp.party_snapshot : JSON.parse(sp.party_snapshot))
+        .map((entry: any) => ({
+          player_id: remap(entry.player_id),
+          slots: entry.slots.map((s: any) => ({ slot: s.slot, catch_id: remap(s.catch_id) }))
+        }))
+      database.prepare(
+        'INSERT INTO saved_parties (id, run_id, name, party_snapshot, created_at) VALUES (?, ?, ?, ?, ?)'
+      ).run(remap(sp.id), newRunId, sp.name, JSON.stringify(snapshot), sp.created_at)
     }
   })
 
@@ -682,4 +762,28 @@ export function dbUpdateBattle(id: string, data: { outcome: string }) {
 export function dbDeleteBattle(id: string) {
   const database = getDb()
   database.prepare('DELETE FROM battle_records WHERE id = ?').run(id)
+}
+
+// ── Saved Parties ─────────────────────────────────────────────────────────────
+
+export function dbGetSavedPartiesByRun(runId: string) {
+  const database = getDb()
+  const rows = database.prepare('SELECT * FROM saved_parties WHERE run_id = ? ORDER BY created_at DESC').all(runId) as any[]
+  return rows.map((r) => ({ ...r, party_snapshot: JSON.parse(r.party_snapshot) }))
+}
+
+export function dbCreateSavedParty(data: { run_id: string; name: string; party_snapshot: object }) {
+  const database = getDb()
+  const id = uuidv4()
+  const now = new Date().toISOString()
+  database
+    .prepare('INSERT INTO saved_parties (id, run_id, name, party_snapshot, created_at) VALUES (?, ?, ?, ?, ?)')
+    .run(id, data.run_id, data.name, JSON.stringify(data.party_snapshot), now)
+  const row = database.prepare('SELECT * FROM saved_parties WHERE id = ?').get(id) as any
+  return { ...row, party_snapshot: JSON.parse(row.party_snapshot) }
+}
+
+export function dbDeleteSavedParty(id: string) {
+  const database = getDb()
+  database.prepare('DELETE FROM saved_parties WHERE id = ?').run(id)
 }

@@ -7,7 +7,7 @@ import { ProgressBar } from '../components/ui/ProgressBar'
 import { TypeBadge } from '../components/pokemon/TypeBadge'
 import { PokemonSprite } from '../components/pokemon/PokemonSprite'
 import { useAppStore } from '../store/appStore'
-import { usePokemonByName, usePokemonSpecies, usePokemonSearch } from '../api/pokeapi'
+import { usePokemonByName, usePokemonSpecies, usePokemonSearch, getPokemonTypes } from '../api/pokeapi'
 import {
   getAvailableBalls,
   getBallBonus,
@@ -169,7 +169,7 @@ export function CatchCalc() {
               <div>
                 <p className="font-medium text-text-primary capitalize">{pokemonData.name}</p>
                 <div className="flex gap-1">
-                  {pokemonData.types.map((t) => <TypeBadge key={t.type.name} type={t.type.name} size="sm" />)}
+                  {getPokemonTypes(pokemonData, generation).map((t) => <TypeBadge key={t} type={t} size="sm" />)}
                 </div>
               </div>
               <div className="ml-auto text-right">

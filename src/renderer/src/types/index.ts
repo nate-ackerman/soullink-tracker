@@ -9,6 +9,7 @@ export interface Ruleset {
   maxSharedTypeCount?: number    // 0 = no limit; 1–6 = max of any one type across all parties combined
   maxSameTeamTypeCount?: number  // 0 = no limit; 1–6 = max of any one type within a single player's party
   trainerLevelModifier?: number  // 100 = normal; 150 = +50% harder; stored as full percentage
+  guaranteedEvolutionLevel?: number | null  // null = off; number = level at which all Pokémon become fully evolved
   hiddenEncounters?: string[]                        // default encounter IDs to hide
   addedEncounters?: { id: string; name: string }[]  // custom user-added encounters
   renamedEncounters?: Record<string, string>         // overridden display names keyed by route ID
@@ -60,6 +61,7 @@ export interface SoulLink {
   run_id: string
   route_id: string
   catch_ids: string[]
+  nickname: string | null
   // 'active' = all members alive; 'broken' = any member has fainted
   status: 'active' | 'broken'
 }
@@ -141,4 +143,12 @@ export interface BattleRecord {
   outcome: 'pending' | 'victory'
   created_at: string
   completed_at: string | null
+}
+
+export interface SavedParty {
+  id: string
+  run_id: string
+  name: string
+  party_snapshot: PartySnapshot[]
+  created_at: string
 }

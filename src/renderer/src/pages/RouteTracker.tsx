@@ -6,7 +6,7 @@ import { Input } from '../components/ui/Input'
 import { Modal } from '../components/ui/Modal'
 import { Card, CardContent } from '../components/ui/Card'
 import { ScrollArea } from '../components/ui/ScrollArea'
-import { EvolvedCatchSprite } from '../components/pokemon/EvolvedCatchSprite'
+import { PokemonSprite } from '../components/pokemon/PokemonSprite'
 import { StatusBadge } from '../components/pokemon/StatusBadge'
 import { useAppStore } from '../store/appStore'
 import { getGameById } from '../data/games'
@@ -889,10 +889,9 @@ export function RouteTracker() {
                     {playerCatch && (
                       <Card className={isLinked ? 'border-accent-teal/40' : ''}>
                         <CardContent className="py-2 flex items-center gap-2">
-                          <EvolvedCatchSprite
+                          <PokemonSprite
                             pokemonId={playerCatch.pokemon_id}
                             pokemonName={playerCatch.pokemon_name}
-                            levelCap={levelCap}
                             size={40}
                             grayscale={playerCatch.status === 'dead'}
                           />
@@ -901,7 +900,6 @@ export function RouteTracker() {
                               {playerCatch.pokemon_name ?? 'Unknown'}
                             </p>
                             <div className="flex items-center gap-1.5 mt-0.5">
-                              <span className="text-[10px] text-text-secondary">Lv. {levelCap ?? 5}</span>
                               <StatusBadge status={playerCatch.status} />
                             </div>
                           </div>

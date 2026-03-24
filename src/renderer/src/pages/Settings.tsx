@@ -3,6 +3,7 @@ import { Save, Check, Download, AlertCircle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
+import { Switch } from '../components/ui/Switch'
 import { useAppStore } from '../store/appStore'
 
 function SliderRow({
@@ -64,6 +65,9 @@ export function Settings() {
   const [trainerLevelModifier, setTrainerLevelModifier] = useState(
     activeRun?.ruleset.trainerLevelModifier ?? 100
   )
+  const existingGuaranteed = activeRun?.ruleset.guaranteedEvolutionLevel ?? null
+  const [guaranteedEvoEnabled, setGuaranteedEvoEnabled] = useState(existingGuaranteed !== null)
+  const [guaranteedEvoLevel, setGuaranteedEvoLevel] = useState(existingGuaranteed ?? 36)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [exporting, setExporting] = useState(false)
@@ -71,11 +75,13 @@ export function Settings() {
 
   if (!activeRun) return <div className="p-6 text-text-muted">No active run</div>
 
+  const currentGuaranteed = guaranteedEvoEnabled ? guaranteedEvoLevel : null
   const isDirty =
     runName.trim() !== activeRun.name ||
     maxSharedTypeCount !== (activeRun.ruleset.maxSharedTypeCount ?? 0) ||
     maxSameTeamTypeCount !== (activeRun.ruleset.maxSameTeamTypeCount ?? 0) ||
-    trainerLevelModifier !== (activeRun.ruleset.trainerLevelModifier ?? 100)
+    trainerLevelModifier !== (activeRun.ruleset.trainerLevelModifier ?? 100) ||
+    currentGuaranteed !== (activeRun.ruleset.guaranteedEvolutionLevel ?? null)
 
   // When cross-team limit decreases, clamp per-team limit so it never exceeds it
   function handleMaxSharedChange(v: number) {
@@ -89,7 +95,7 @@ export function Settings() {
     try {
       await window.api.runs.update(activeRun!.id, {
         name: runName.trim(),
-        ruleset: { ...activeRun!.ruleset, maxSharedTypeCount, maxSameTeamTypeCount, trainerLevelModifier },
+        ruleset: { ...activeRun!.ruleset, maxSharedTypeCount, maxSameTeamTypeCount, trainerLevelModifier, guaranteedEvolutionLevel: currentGuaranteed },
       })
       if (activeRunId) await loadRunData(activeRunId)
       setSaved(true)
@@ -194,6 +200,38 @@ export function Settings() {
             onChange={setTrainerLevelModifier}
             displayValue={modifierDisplay}
           />
+        </CardContent>
+      </Card>
+
+      {/* Evolution rules */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Evolution Rules</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Switch
+            id="guaranteed-evo"
+            checked={guaranteedEvoEnabled}
+            onCheckedChange={setGuaranteedEvoEnabled}
+            label="Guaranteed full evolution at level"
+            description="When enabled, all Pokémon are displayed as fully evolved once the level cap reaches this threshold."
+          />
+          {guaranteedEvoEnabled && (
+            <div className="flex items-center gap-3 pl-1">
+              <label htmlFor="guaranteed-evo-level" className="text-sm text-text-muted whitespace-nowrap">
+                Evolve at level
+              </label>
+              <Input
+                id="guaranteed-evo-level"
+                type="number"
+                min={1}
+                max={100}
+                value={guaranteedEvoLevel}
+                onChange={(e) => setGuaranteedEvoLevel(Math.max(1, Math.min(100, Number(e.target.value))))}
+                className="w-24"
+              />
+            </div>
+          )}
         </CardContent>
       </Card>
 

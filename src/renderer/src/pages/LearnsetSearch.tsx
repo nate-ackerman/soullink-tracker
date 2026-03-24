@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { BookOpen, ChevronRight } from 'lucide-react'
 import { Input } from '../components/ui/Input'
@@ -7,8 +6,9 @@ import { PokemonSprite } from '../components/pokemon/PokemonSprite'
 import { Spinner } from '../components/ui/Spinner'
 import { Tabs, TabContent } from '../components/ui/Tabs'
 import { useAppStore } from '../store/appStore'
-import { usePokemonByName, usePokemonMoves, useMoveDetails, usePokemonSearch, usePokemonSpecies, useEvolutionChain } from '../api/pokeapi'
-import type { LearnsetMove, ChainLink } from '../api/pokeapi'
+import { useState, useMemo } from 'react'
+import { usePokemonByName, useMoveDetailsBatch, useMachineBatch, usePokemonSearch, usePokemonSpecies, useEvolutionChain, getPokemonTypes, extractMovesForGeneration, getVersionGroups } from '../api/pokeapi'
+import type { LearnsetMove, MoveData, ChainLink } from '../api/pokeapi'
 
 interface EvoStage { name: string; level: number | null }
 
@@ -45,23 +45,27 @@ const LEARN_METHOD_TABS = [
   { id: 'tutor', label: 'Tutor' }
 ]
 
-function MoveRow({ move }: { move: LearnsetMove }) {
-  const { data: moveData, isLoading } = useMoveDetails(move.name)
-
+function MoveRow({ move, moveData, tmNumber, showTmColumn }: { move: LearnsetMove; moveData: MoveData | undefined; tmNumber?: string; showTmColumn?: boolean }) {
   return (
     <tr className="border-b border-border hover:bg-elevated/50 transition-colors">
-      <td className="px-3 py-2 text-xs text-text-muted w-12">
-        {move.learnMethod === 'level-up' && move.levelLearnedAt > 0 ? move.levelLearnedAt : '—'}
-      </td>
+      {showTmColumn ? (
+        <td className="px-3 py-2 text-xs font-medium text-text-secondary w-16">
+          {tmNumber ?? <span className="text-text-muted">—</span>}
+        </td>
+      ) : (
+        <td className="px-3 py-2 text-xs text-text-muted w-12">
+          {move.learnMethod === 'level-up' && move.levelLearnedAt > 0 ? move.levelLearnedAt : '—'}
+        </td>
+      )}
       <td className="px-3 py-2 text-sm text-text-primary capitalize">
         {move.name.replace(/-/g, ' ')}
       </td>
       <td className="px-3 py-2">
-        {isLoading ? (
-          <div className="w-14 h-4 bg-elevated rounded animate-pulse" />
-        ) : moveData ? (
+        {moveData ? (
           <TypeBadge type={moveData.type.name} size="sm" />
-        ) : null}
+        ) : (
+          <div className="w-14 h-4 bg-elevated rounded animate-pulse" />
+        )}
       </td>
       <td className="px-3 py-2">
         {moveData && (
@@ -77,13 +81,13 @@ function MoveRow({ move }: { move: LearnsetMove }) {
         )}
       </td>
       <td className="px-3 py-2 text-xs text-text-secondary text-center">
-        {isLoading ? '...' : moveData?.power ?? '—'}
+        {moveData?.power ?? '—'}
       </td>
       <td className="px-3 py-2 text-xs text-text-secondary text-center">
-        {isLoading ? '...' : moveData?.accuracy ? `${moveData.accuracy}%` : '—'}
+        {moveData?.accuracy ? `${moveData.accuracy}%` : '—'}
       </td>
       <td className="px-3 py-2 text-xs text-text-secondary text-center">
-        {isLoading ? '...' : moveData?.pp ?? '—'}
+        {moveData?.pp ?? '—'}
       </td>
     </tr>
   )
@@ -100,30 +104,75 @@ export function LearnsetSearch() {
   const [activeTab, setActiveTab] = useState('level-up')
 
   const generation = activeRun?.generation ?? 3
+  const gameId = activeRun?.game ?? ''
 
   const { data: searchResults } = usePokemonSearch(searchQuery)
   const { data: pokemonData, isLoading: pokemonLoading } = usePokemonByName(selectedPokemon)
-  const { data: movesData, isLoading: movesLoading } = usePokemonMoves(pokemonData?.id ?? 0, generation)
+
+  // Derive moves directly from already-fetched pokemon data — no second HTTP request
+  const movesByMethod = useMemo<Record<string, LearnsetMove[]>>(() => {
+    if (!pokemonData) return {}
+    const all = extractMovesForGeneration(pokemonData, gameId, generation)
+    const grouped: Record<string, LearnsetMove[]> = {}
+    for (const move of all) {
+      if (!grouped[move.learnMethod]) grouped[move.learnMethod] = []
+      grouped[move.learnMethod].push(move)
+    }
+    if (grouped['level-up']) grouped['level-up'].sort((a, b) => a.levelLearnedAt - b.levelLearnedAt)
+    return grouped
+  }, [pokemonData, gameId, generation])
+
+  // Batch-fetch details for ALL moves in parallel (one useQueries call, not N individual hooks)
+  const allMoveNames = useMemo(() => [...new Set(Object.values(movesByMethod).flat().map((m) => m.name))], [movesByMethod])
+  const moveDetailsMap = useMoveDetailsBatch(allMoveNames)
+  const movesLoading = allMoveNames.length > 0 && moveDetailsMap.size === 0
+
+  // For TM/HM tab: find each move's machine URL for the current version group, then batch-fetch
+  const versionGroups = useMemo(() => getVersionGroups(gameId, generation), [gameId, generation])
+  const machineUrls = useMemo(() => {
+    return (movesByMethod['machine'] ?? []).map((move) => {
+      const details = moveDetailsMap.get(move.name)
+      return details?.machines?.find((m) => versionGroups.includes(m.version_group.name))?.machine.url ?? null
+    }).filter(Boolean) as string[]
+  }, [movesByMethod, moveDetailsMap, versionGroups])
+  const machineDataMap = useMachineBatch(machineUrls)
+
+  // Build moveName → "TM01" / "HM06" using machine item names
+  const tmNumberMap = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const [, machine] of machineDataMap) {
+      const raw = machine.item.name  // e.g. "tm01", "hm06"
+      const match = raw.match(/^(tm|hm)(\d+)$/)
+      if (match) {
+        const label = `${match[1].toUpperCase()}${match[2].padStart(2, '0')}`
+        map.set(machine.move.name, label)
+      }
+    }
+    return map
+  }, [machineDataMap])
 
   const { data: speciesData } = usePokemonSpecies(pokemonData?.id ?? 0)
   const { data: chainData } = useEvolutionChain(speciesData?.evolution_chain?.url ?? '')
   const evoLine = chainData ? flattenChain(chainData.chain) : []
 
-  const movesByMethod = movesData?.reduce((acc, move) => {
-    const method = move.learnMethod
-    if (!acc[method]) acc[method] = []
-    acc[method].push(move)
-    return acc
-  }, {} as Record<string, LearnsetMove[]>) ?? {}
+  const isMachineTab = activeTab === 'machine'
 
-  // Sort level-up moves by level
-  if (movesByMethod['level-up']) {
-    movesByMethod['level-up'].sort((a, b) => a.levelLearnedAt - b.levelLearnedAt)
-  }
-
-  const currentMoves = (LEARN_METHOD_TABS.find(t => t.id === activeTab)?.id === activeTab
-    ? movesByMethod[activeTab] ?? []
-    : [])
+  // Sort TM/HM moves by number (TMs first, then HMs); other tabs keep their existing order
+  const currentMoves = useMemo(() => {
+    const moves = movesByMethod[activeTab] ?? []
+    if (!isMachineTab || tmNumberMap.size === 0) return moves
+    return [...moves].sort((a, b) => {
+      const ta = tmNumberMap.get(a.name)
+      const tb = tmNumberMap.get(b.name)
+      if (!ta && !tb) return 0
+      if (!ta) return 1
+      if (!tb) return -1
+      const aHm = ta.startsWith('HM')
+      const bHm = tb.startsWith('HM')
+      if (aHm !== bHm) return aHm ? 1 : -1
+      return parseInt(ta.slice(2)) - parseInt(tb.slice(2))
+    })
+  }, [movesByMethod, activeTab, isMachineTab, tmNumberMap])
 
   return (
     <div className="flex flex-col">
@@ -182,7 +231,7 @@ export function LearnsetSearch() {
           </div>
           {activeRun && (
             <div className="text-xs text-text-muted pb-2">
-              Gen {generation} learnset
+              {activeRun.game ? `${activeRun.game} learnset` : `Gen ${generation} learnset`}
             </div>
           )}
         </div>
@@ -216,8 +265,8 @@ export function LearnsetSearch() {
               <p className="font-semibold text-text-primary capitalize">{pokemonData.name}</p>
               <p className="text-xs text-text-muted">#{pokemonData.id}</p>
               <div className="flex gap-1 mt-1">
-                {pokemonData.types.map((t) => (
-                  <TypeBadge key={t.type.name} type={t.type.name} size="sm" />
+                {getPokemonTypes(pokemonData, generation).map((t) => (
+                  <TypeBadge key={t} type={t} size="sm" />
                 ))}
               </div>
             </div>
@@ -263,13 +312,15 @@ export function LearnsetSearch() {
             <TabContent value={activeTab}>
               {currentMoves.length === 0 ? (
                 <div className="text-center py-8 text-text-muted">
-                  No moves via this method in Gen {generation}
+                  No moves via this method in {activeRun?.game ?? `Gen ${generation}`}
                 </div>
               ) : (
                 <table className="w-full text-sm">
                   <thead className="sticky top-0 bg-secondary border-b border-border">
                     <tr>
-                      <th className="px-3 py-2 text-left text-xs text-text-muted font-medium w-12">Lv</th>
+                      <th className="px-3 py-2 text-left text-xs text-text-muted font-medium w-16">
+                        {isMachineTab ? 'TM/HM' : 'Lv'}
+                      </th>
                       <th className="px-3 py-2 text-left text-xs text-text-muted font-medium">Move</th>
                       <th className="px-3 py-2 text-left text-xs text-text-muted font-medium">Type</th>
                       <th className="px-3 py-2 text-left text-xs text-text-muted font-medium">Cat.</th>
@@ -280,7 +331,13 @@ export function LearnsetSearch() {
                   </thead>
                   <tbody>
                     {currentMoves.map((move) => (
-                      <MoveRow key={move.name} move={move} />
+                      <MoveRow
+                        key={move.name}
+                        move={move}
+                        moveData={moveDetailsMap.get(move.name)}
+                        tmNumber={tmNumberMap.get(move.name)}
+                        showTmColumn={isMachineTab}
+                      />
                     ))}
                   </tbody>
                 </table>

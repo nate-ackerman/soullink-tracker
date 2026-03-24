@@ -36,7 +36,7 @@ function PartyMemberCell({ member, levelCap }: { member: Catch; levelCap: number
         pokemonId={member.pokemon_id}
         pokemonName={member.pokemon_name}
         levelCap={levelCap}
-        size={36}
+        size={56}
         grayscale={member.status === 'dead'}
       />
     </div>
@@ -176,7 +176,7 @@ function MarkDeathModal({ activeLinks, prefillRoute, onConfirm, onClose }: MarkD
                           <EvolvedCatchSprite
                             pokemonId={m.pokemon_id}
                             pokemonName={m.pokemon_name}
-                            levelCap={null}
+                            levelCap={levelCap}
                             size={28}
                           />
                           {player && (
@@ -597,7 +597,7 @@ export function RunDashboard() {
                                 return c ? (
                                   <div key={cid} className="flex items-center gap-0.5">
                                     {ci > 0 && <Link2 className="w-2 h-2 text-accent-teal" />}
-                                    <EvolvedCatchSprite pokemonId={c.pokemon_id} pokemonName={c.pokemon_name} levelCap={null} size={18} grayscale={c.status === 'dead'} />
+                                    <EvolvedCatchSprite pokemonId={c.pokemon_id} pokemonName={c.pokemon_name} levelCap={levelCap} size={18} grayscale={c.status === 'dead'} />
                                   </div>
                                 ) : null
                               })}

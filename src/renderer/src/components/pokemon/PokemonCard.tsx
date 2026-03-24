@@ -2,7 +2,7 @@ import { cn } from '../../utils/cn'
 import { EvolvedCatchSprite } from './EvolvedCatchSprite'
 import { StatusBadge } from './StatusBadge'
 import { TypeBadge } from './TypeBadge'
-import { usePokemonById } from '../../api/pokeapi'
+import { usePokemonById, getPokemonTypes } from '../../api/pokeapi'
 import { useAppStore } from '../../store/appStore'
 import type { Catch } from '../../types'
 
@@ -16,11 +16,14 @@ interface PokemonCardProps {
 
 function PokemonTypeDisplay({ pokemonId }: { pokemonId: number }) {
   const { data } = usePokemonById(pokemonId)
+  const { activeRun } = useAppStore()
+  const generation = activeRun?.generation ?? 6
   if (!data) return null
+  const types = getPokemonTypes(data, generation)
   return (
     <div className="flex gap-1 flex-wrap">
-      {data.types.map((t) => (
-        <TypeBadge key={t.type.name} type={t.type.name} size="sm" />
+      {types.map((t) => (
+        <TypeBadge key={t} type={t} size="sm" />
       ))}
     </div>
   )

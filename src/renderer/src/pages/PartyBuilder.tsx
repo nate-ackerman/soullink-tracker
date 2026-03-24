@@ -4,26 +4,28 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card'
 import { TypeBadge } from '../components/pokemon/TypeBadge'
 import { PokemonSprite } from '../components/pokemon/PokemonSprite'
 import { useAppStore } from '../store/appStore'
-import { usePokemonById } from '../api/pokeapi'
-import { TYPE_COLORS, getTypeMatchups } from '../data/typeColors'
+import { usePokemonById, getPokemonTypes } from '../api/pokeapi'
+import { getTypeMatchups, getTypesForGeneration } from '../data/typeColors'
 import type { Catch, SoulLink, Player } from '../types'
 
 // ── Type data fetcher ─────────────────────────────────────────────────────────
 
-function usePokemonTypes(pokemonId: number | null): string[] {
+function usePokemonTypes(pokemonId: number | null, generation: number): string[] {
   const { data } = usePokemonById(pokemonId ?? 0)
   if (!data || !pokemonId) return []
-  return data.types.map((t) => t.type.name)
+  return getPokemonTypes(data, generation)
 }
 
 function PokemonCardInBuilder({
   catch_,
-  player
+  player,
+  generation
 }: {
   catch_: Catch
   player?: Player
+  generation: number
 }) {
-  const types = usePokemonTypes(catch_.pokemon_id)
+  const types = usePokemonTypes(catch_.pokemon_id, generation)
   return (
     <div
       className="flex flex-col items-center gap-1 p-2 rounded-lg border border-border bg-elevated"
@@ -49,13 +51,15 @@ function PokemonCardInBuilder({
 function TypeCoverageMatrix({
   selectedLinks,
   catches,
-  players
+  players,
+  generation
 }: {
   selectedLinks: SoulLink[]
   catches: Catch[]
   players: Player[]
+  generation: number
 }) {
-  const allTypes = Object.keys(TYPE_COLORS)
+  const allTypes = getTypesForGeneration(generation)
 
   // Build per-player planned teams from selected soul links
   const teamByPlayer = new Map<string, Catch[]>()
@@ -87,7 +91,7 @@ function TypeCoverageMatrix({
         {selectedLinks.length === 0 ? (
           <p className="text-xs text-text-muted">Select soul links above to see type coverage</p>
         ) : (
-          <TypeCoverageTable players={players} teamByPlayer={teamByPlayer} allTypes={allTypes} catches={catches} />
+          <TypeCoverageTable players={players} teamByPlayer={teamByPlayer} allTypes={allTypes} catches={catches} generation={generation} />
         )}
       </CardContent>
     </Card>
@@ -98,12 +102,14 @@ function TypeCoverageTable({
   players,
   teamByPlayer,
   allTypes,
-  catches
+  catches,
+  generation
 }: {
   players: Player[]
   teamByPlayer: Map<string, Catch[]>
   allTypes: string[]
   catches: Catch[]
+  generation: number
 }) {
   return (
     <div className="overflow-x-auto">
@@ -127,7 +133,7 @@ function TypeCoverageTable({
               {players.map((p) => {
                 const team = teamByPlayer.get(p.id) ?? []
                 return (
-                  <TeamTypeCell key={p.id} type={type} team={team} />
+                  <TeamTypeCell key={p.id} type={type} team={team} generation={generation} />
                 )
               })}
             </tr>
@@ -138,24 +144,24 @@ function TypeCoverageTable({
   )
 }
 
-function TeamTypeCell({ type, team }: { type: string; team: Catch[] }) {
+function TeamTypeCell({ type, team, generation }: { type: string; team: Catch[]; generation: number }) {
   // Compute coverage/weakness by fetching types for each pokemon
   // We use a simplified display based on what's loaded
   const results = team.map((c) => {
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const { data } = usePokemonById(c.pokemon_id ?? 0)
-    return data ? data.types.map((t) => t.type.name) : []
+    return data ? getPokemonTypes(data, generation) : []
   })
 
   let isCovered = false
   let isWeak = false
   for (const types of results) {
     if (types.length === 0) continue
-    const matchup = getTypeMatchups(types)
+    const matchup = getTypeMatchups(types, generation)
     if ((matchup[type] ?? 1) >= 2) isWeak = true
     // Check if any of this pokemon's types hits the query type super effectively
     for (const ownType of types) {
-      const atkMatchup = getTypeMatchups([ownType])
+      const atkMatchup = getTypeMatchups([ownType], generation)
       if ((atkMatchup[type] ?? 1) >= 2) isCovered = true
     }
   }
@@ -325,7 +331,7 @@ export function PartyBuilder() {
                         return (
                           <div key={c.id} className="flex items-center gap-1.5">
                             {idx > 0 && <Link2 className="w-3 h-3 text-accent-teal" />}
-                            <PokemonCardInBuilder catch_={c} player={player} />
+                            <PokemonCardInBuilder catch_={c} player={player} generation={activeRun.generation} />
                           </div>
                         )
                       })}
@@ -347,6 +353,7 @@ export function PartyBuilder() {
       {/* Type coverage matrix */}
       <TypeCoverageMatrix
         selectedLinks={selectedLinks}
+        generation={activeRun.generation}
         catches={catches}
         players={players}
       />

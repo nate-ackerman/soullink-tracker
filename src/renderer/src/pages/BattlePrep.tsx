@@ -6,7 +6,7 @@ import { TypeBadge } from '../components/pokemon/TypeBadge'
 import { PokemonSprite } from '../components/pokemon/PokemonSprite'
 import { useAppStore } from '../store/appStore'
 import { getGameById } from '../data/games'
-import { usePokemonById } from '../api/pokeapi'
+import { usePokemonById, getPokemonTypes } from '../api/pokeapi'
 import type { Catch } from '../types'
 import type { GymLeader as GymLeaderType } from '../data/games'
 
@@ -16,7 +16,7 @@ function LevelStatus({ level, cap }: { level: number; cap: number }) {
   return <span className="text-xs font-medium text-green-400">Under cap ({level}/{cap})</span>
 }
 
-function PartyMemberRow({ catch_, cap, displayLevel }: { catch_: Catch; cap: number; displayLevel: number }) {
+function PartyMemberRow({ catch_, cap, displayLevel, generation }: { catch_: Catch; cap: number; displayLevel: number; generation: number }) {
   const { data } = usePokemonById(catch_.pokemon_id ?? 0)
 
   return (
@@ -26,7 +26,7 @@ function PartyMemberRow({ catch_, cap, displayLevel }: { catch_: Catch; cap: num
         <span className="text-xs text-text-primary">{catch_.nickname ?? catch_.pokemon_name ?? '?'}</span>
         {data && (
           <div className="flex gap-1 mt-0.5">
-            {data.types.map((t) => <TypeBadge key={t.type.name} type={t.type.name} size="sm" />)}
+            {getPokemonTypes(data, generation).map((t) => <TypeBadge key={t} type={t} size="sm" />)}
           </div>
         )}
       </div>
@@ -171,7 +171,7 @@ export function BattlePrep() {
                       ) : (
                         <div className="divide-y divide-border">
                           {party.map((c) => (
-                            <PartyMemberRow key={c.id} catch_={c} cap={cap} displayLevel={displayLevel} />
+                            <PartyMemberRow key={c.id} catch_={c} cap={cap} displayLevel={displayLevel} generation={activeRun.generation} />
                           ))}
                         </div>
                       )}

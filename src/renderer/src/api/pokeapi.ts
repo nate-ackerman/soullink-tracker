@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueries } from '@tanstack/react-query'
 import { getTypeMatchups } from '../data/typeColors'
 
 const BASE_URL = 'https://pokeapi.co/api/v2'
@@ -17,10 +17,20 @@ async function fetchJson<T>(url: string): Promise<T> {
   return res.json()
 }
 
+const GEN_NAME_TO_NUM: Record<string, number> = {
+  'generation-i': 1, 'generation-ii': 2, 'generation-iii': 3,
+  'generation-iv': 4, 'generation-v': 5, 'generation-vi': 6,
+  'generation-vii': 7, 'generation-viii': 8, 'generation-ix': 9
+}
+
 export interface PokemonData {
   id: number
   name: string
   types: { slot: number; type: { name: string } }[]
+  past_types: {
+    generation: { name: string }
+    types: { slot: number; type: { name: string } }[]
+  }[]
   sprites: {
     front_default: string | null
     front_shiny: string | null
@@ -41,6 +51,18 @@ export interface PokemonData {
   weight: number
   base_experience: number
   species: { name: string; url: string }
+}
+
+// Returns the types a Pokémon had in a given generation, using past_types when applicable.
+export function getPokemonTypes(data: PokemonData, generation: number): string[] {
+  if (data.past_types && data.past_types.length > 0) {
+    const relevant = data.past_types
+      .map((pt) => ({ genNum: GEN_NAME_TO_NUM[pt.generation.name] ?? 99, types: pt.types }))
+      .filter((pt) => pt.genNum >= generation)
+      .sort((a, b) => a.genNum - b.genNum)
+    if (relevant.length > 0) return relevant[0].types.map((t) => t.type.name)
+  }
+  return data.types.map((t) => t.type.name)
 }
 
 export interface PokemonSpeciesData {
@@ -89,6 +111,14 @@ export interface MoveData {
   accuracy: number | null
   pp: number | null
   effect_entries: { effect: string; short_effect: string }[]
+  machines: { machine: { url: string }; version_group: { name: string } }[]
+}
+
+export interface MachineData {
+  id: number
+  item: { name: string }   // e.g. "tm01", "hm06"
+  move: { name: string }
+  version_group: { name: string }
 }
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
@@ -157,6 +187,32 @@ export interface LearnsetMove {
   pp?: number | null
 }
 
+// Maps game IDs (as stored in Run.game) to their PokeAPI version group name(s).
+// A game maps to exactly one version group; the array form is kept for filter consistency.
+export const GAME_VERSION_GROUPS: Record<string, string[]> = {
+  red:        ['red-blue'],
+  blue:       ['red-blue'],
+  yellow:     ['yellow'],
+  gold:       ['gold-silver'],
+  silver:     ['gold-silver'],
+  crystal:    ['crystal'],
+  ruby:       ['ruby-sapphire'],
+  sapphire:   ['ruby-sapphire'],
+  emerald:    ['emerald'],
+  firered:    ['firered-leafgreen'],
+  leafgreen:  ['firered-leafgreen'],
+  diamond:    ['diamond-pearl'],
+  pearl:      ['diamond-pearl'],
+  platinum:   ['platinum'],
+  heartgold:  ['heartgold-soulsilver'],
+  soulsilver: ['heartgold-soulsilver'],
+  black:      ['black-white'],
+  white:      ['black-white'],
+  black2:     ['black-2-white-2'],
+  white2:     ['black-2-white-2'],
+}
+
+// Fallback: all version groups for a generation (used when game ID is unknown).
 const GEN_VERSION_GROUPS: Record<number, string[]> = {
   1: ['red-blue', 'yellow'],
   2: ['gold-silver', 'crystal'],
@@ -165,42 +221,34 @@ const GEN_VERSION_GROUPS: Record<number, string[]> = {
   5: ['black-white', 'black-2-white-2']
 }
 
-export function usePokemonMoves(pokemonId: number, generation: number) {
-  const exactGroups = GEN_VERSION_GROUPS[generation] ?? []
+export function getVersionGroups(gameId: string, generation: number): string[] {
+  return GAME_VERSION_GROUPS[gameId] ?? GEN_VERSION_GROUPS[generation] ?? []
+}
 
-  return useQuery({
-    queryKey: ['pokemon-moves', pokemonId, generation],
-    queryFn: async () => {
-      const data = await fetchJson<PokemonData>(`${BASE_URL}/pokemon/${pokemonId}`)
-      const moves: LearnsetMove[] = []
-
-      for (const moveEntry of data.moves) {
-        const relevantDetails = moveEntry.version_group_details.filter((d) =>
-          exactGroups.includes(d.version_group.name)
-        )
-        if (relevantDetails.length === 0) continue
-
-        // Add one entry per unique learn method (a move can be both level-up AND TM)
-        const seen = new Set<string>()
-        for (const detail of relevantDetails) {
-          const method = detail.move_learn_method.name
-          if (!seen.has(method)) {
-            seen.add(method)
-            moves.push({
-              name: moveEntry.move.name,
-              url: moveEntry.move.url,
-              learnMethod: method,
-              levelLearnedAt: detail.level_learned_at
-            })
-          }
-        }
+// Pure extraction — works on already-fetched PokemonData, no extra request needed.
+export function extractMovesForGeneration(data: PokemonData, gameId: string, generation: number): LearnsetMove[] {
+  const exactGroups = getVersionGroups(gameId, generation)
+  const moves: LearnsetMove[] = []
+  for (const moveEntry of data.moves) {
+    const relevantDetails = moveEntry.version_group_details.filter((d) =>
+      exactGroups.includes(d.version_group.name)
+    )
+    if (relevantDetails.length === 0) continue
+    const seen = new Set<string>()
+    for (const detail of relevantDetails) {
+      const method = detail.move_learn_method.name
+      if (!seen.has(method)) {
+        seen.add(method)
+        moves.push({
+          name: moveEntry.move.name,
+          url: moveEntry.move.url,
+          learnMethod: method,
+          levelLearnedAt: detail.level_learned_at
+        })
       }
-
-      return moves
-    },
-    enabled: pokemonId > 0,
-    staleTime: Infinity
-  })
+    }
+  }
+  return moves
 }
 
 export function useMoveDetails(moveName: string) {
@@ -212,10 +260,47 @@ export function useMoveDetails(moveName: string) {
   })
 }
 
-export function useTypeMatchup(types: string[]) {
+// Fetches machine data for a list of machine URLs in parallel.
+// Returns a map of machine URL → MachineData.
+export function useMachineBatch(machineUrls: string[]): Map<string, MachineData> {
+  const results = useQueries({
+    queries: machineUrls.map((url) => ({
+      queryKey: ['machine', url],
+      queryFn: () => fetchJson<MachineData>(url),
+      staleTime: Infinity,
+      enabled: !!url,
+    })),
+  })
+  const map = new Map<string, MachineData>()
+  machineUrls.forEach((url, i) => {
+    const data = results[i]?.data
+    if (data) map.set(url, data)
+  })
+  return map
+}
+
+// Fetches details for a list of moves in parallel. Returns a map of name → MoveData.
+export function useMoveDetailsBatch(moveNames: string[]): Map<string, MoveData> {
+  const results = useQueries({
+    queries: moveNames.map((name) => ({
+      queryKey: ['move', name],
+      queryFn: () => fetchJson<MoveData>(`${BASE_URL}/move/${name}`),
+      staleTime: Infinity,
+      enabled: !!name,
+    })),
+  })
+  const map = new Map<string, MoveData>()
+  moveNames.forEach((name, i) => {
+    const data = results[i]?.data
+    if (data) map.set(name, data)
+  })
+  return map
+}
+
+export function useTypeMatchup(types: string[], generation = 6) {
   return useQuery({
-    queryKey: ['type-matchup', [...types].sort().join(',')],
-    queryFn: () => Promise.resolve(getTypeMatchups(types)),
+    queryKey: ['type-matchup', [...types].sort().join(','), generation],
+    queryFn: () => Promise.resolve(getTypeMatchups(types, generation)),
     enabled: types.length > 0,
     staleTime: Infinity
   })

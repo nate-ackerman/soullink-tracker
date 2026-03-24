@@ -13,25 +13,14 @@ import type { SoulLink, Catch, Player } from '../types'
 
 type FilterMode = 'all' | 'active' | 'broken'
 
-function LinkedPokemonMiniCard({ c, player, levelCap, isBroken, onNicknameChange }: {
+function LinkedPokemonMiniCard({ c, player, levelCap, isBroken }: {
   c: Catch
   player: Player | undefined
   levelCap: number | null
   isBroken: boolean
-  onNicknameChange: () => void
 }) {
   const navigate = useNavigate()
   const isDead = c.status === 'dead'
-  const [editingNick, setEditingNick] = useState(false)
-  const [nickValue, setNickValue] = useState(c.nickname ?? '')
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  async function saveNickname() {
-    const trimmed = nickValue.trim()
-    await window.api.catches.update(c.id, { nickname: trimmed || null })
-    setEditingNick(false)
-    onNicknameChange()
-  }
 
   const { data: speciesData } = usePokemonSpecies(c.pokemon_id ?? 0)
   const { data: chainData } = useEvolutionChain(speciesData?.evolution_chain?.url ?? '')
@@ -67,53 +56,41 @@ function LinkedPokemonMiniCard({ c, player, levelCap, isBroken, onNicknameChange
       </div>
       <div className="text-center w-full">
         <p className="text-xs font-medium text-text-primary capitalize">
-          {c.pokemon_name ?? 'Unknown'}
+          {displayName ?? 'Unknown'}
         </p>
         {player && (
           <span className="text-[10px] px-1 rounded" style={{ color: player.color }}>
             {player.name}
           </span>
         )}
-        {editingNick ? (
-          <div className="flex items-center gap-0.5 mt-1" onClick={(e) => e.stopPropagation()}>
-            <input
-              ref={inputRef}
-              autoFocus
-              value={nickValue}
-              onChange={(e) => setNickValue(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') saveNickname(); if (e.key === 'Escape') setEditingNick(false) }}
-              className="w-full text-[10px] bg-elevated border border-accent-teal rounded px-1 py-0.5 text-text-primary focus:outline-none min-w-0"
-              placeholder="Nickname"
-            />
-            <button onClick={saveNickname} className="text-accent-teal shrink-0"><Check className="w-3 h-3" /></button>
-          </div>
-        ) : (
-          <button
-            onClick={(e) => { e.stopPropagation(); setNickValue(c.nickname ?? ''); setEditingNick(true) }}
-            className="flex items-center gap-0.5 mx-auto mt-0.5 text-[10px] text-text-muted hover:text-text-secondary transition-colors"
-          >
-            <Pencil className="w-2.5 h-2.5 shrink-0" />
-            <span className="truncate max-w-[5rem]">{c.nickname ?? 'nickname'}</span>
-          </button>
-        )}
       </div>
     </div>
   )
 }
 
-function LinkRow({ link, catches, players, routeName, levelCap, onMarkDeath, onNicknameChange }: {
+function LinkRow({ link, catches, players, routeName, levelCap, onMarkDeath, onRefresh }: {
   link: SoulLink
   catches: Catch[]
   players: Player[]
   routeName: string
   levelCap: number | null
   onMarkDeath?: () => void
-  onNicknameChange: () => void
+  onRefresh: () => void
 }) {
   const linkedCatches = link.catch_ids
     .map((cid) => catches.find((c) => c.id === cid))
     .filter(Boolean) as Catch[]
   const isBroken = link.status === 'broken'
+  const [editingNick, setEditingNick] = useState(false)
+  const [nickValue, setNickValue] = useState(link.nickname ?? '')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  async function saveNickname() {
+    const trimmed = nickValue.trim()
+    await window.api.soulLinks.update(link.id, { nickname: trimmed || null })
+    setEditingNick(false)
+    onRefresh()
+  }
 
   return (
     <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}>
@@ -130,10 +107,34 @@ function LinkRow({ link, catches, players, routeName, levelCap, onMarkDeath, onN
             )}
           </div>
 
-          {/* Shared nickname */}
-          {linkedCatches[0]?.nickname && (
-            <p className="text-xs font-semibold text-text-primary mb-2">"{linkedCatches[0].nickname}"</p>
-          )}
+          {/* Soul link nickname — editable, applies to the whole link */}
+          <div className="mb-2">
+            {editingNick ? (
+              <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                <input
+                  ref={inputRef}
+                  autoFocus
+                  value={nickValue}
+                  onChange={(e) => setNickValue(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') saveNickname(); if (e.key === 'Escape') setEditingNick(false) }}
+                  className="text-xs bg-elevated border border-accent-teal rounded px-2 py-0.5 text-text-primary focus:outline-none w-36"
+                  placeholder="Soul link nickname…"
+                />
+                <button onClick={saveNickname} className="text-accent-teal"><Check className="w-3.5 h-3.5" /></button>
+                <button onClick={() => setEditingNick(false)} className="text-text-muted hover:text-text-secondary"><X className="w-3.5 h-3.5" /></button>
+              </div>
+            ) : (
+              <button
+                onClick={() => { setNickValue(link.nickname ?? ''); setEditingNick(true) }}
+                className="flex items-center gap-1 text-[11px] text-text-muted hover:text-text-secondary transition-colors"
+              >
+                <Pencil className="w-2.5 h-2.5 shrink-0" />
+                {link.nickname
+                  ? <span className="font-semibold text-text-primary">"{link.nickname}"</span>
+                  : <span>add nickname…</span>}
+              </button>
+            )}
+          </div>
 
           {/* Pokémon cards side by side */}
           <div className="flex items-center gap-3 flex-wrap">
@@ -146,7 +147,7 @@ function LinkRow({ link, catches, players, routeName, levelCap, onMarkDeath, onN
                       <Link2 className="w-3 h-3" />
                     </div>
                   )}
-                  <LinkedPokemonMiniCard c={c} player={player} levelCap={levelCap} isBroken={isBroken} onNicknameChange={onNicknameChange} />
+                  <LinkedPokemonMiniCard c={c} player={player} levelCap={levelCap} isBroken={isBroken} />
                 </div>
               )
             })}
@@ -376,7 +377,7 @@ export function SoulLinkView() {
               routeName={getRouteName(link.route_id)}
               levelCap={levelCap}
               onMarkDeath={link.status === 'active' ? () => setDeathLink(link) : undefined}
-              onNicknameChange={() => activeRunId && loadRunData(activeRunId)}
+              onRefresh={() => activeRunId && loadRunData(activeRunId)}
             />
           ))}
         </div>

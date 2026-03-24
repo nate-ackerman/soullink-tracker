@@ -29,7 +29,7 @@ const api = {
   soulLinks: {
     getByRun: (runId: string) => ipcRenderer.invoke('soulLinks:getByRun', runId),
     create: (data: any) => ipcRenderer.invoke('soulLinks:create', data),
-    update: (id: string, catchIds: string[]) => ipcRenderer.invoke('soulLinks:update', id, catchIds),
+    update: (id: string, data: { catchIds?: string[]; nickname?: string | null }) => ipcRenderer.invoke('soulLinks:update', id, data),
     delete: (id: string) => ipcRenderer.invoke('soulLinks:delete', id)
   },
   party: {
@@ -53,6 +53,11 @@ const api = {
     create: (data: any) => ipcRenderer.invoke('battles:create', data),
     update: (id: string, data: any) => ipcRenderer.invoke('battles:update', id, data),
     delete: (id: string) => ipcRenderer.invoke('battles:delete', id)
+  },
+  savedParties: {
+    getByRun: (runId: string) => ipcRenderer.invoke('savedParties:getByRun', runId),
+    create: (data: any) => ipcRenderer.invoke('savedParties:create', data),
+    delete: (id: string) => ipcRenderer.invoke('savedParties:delete', id)
   }
 }
 

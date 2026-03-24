@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
 import { PokemonSprite } from './PokemonSprite'
 import { usePokemonSpecies, useEvolutionChain, usePokemonByName } from '../../api/pokeapi'
-import { resolveEvolutionAtLevel } from '../../utils/evolutionUtils'
+import { resolveEvolutionAtLevel, resolveFullEvolution } from '../../utils/evolutionUtils'
+import { useAppStore } from '../../store/appStore'
 
 interface EvolvedCatchSpriteProps {
   pokemonId: number | null
@@ -32,12 +33,19 @@ export function EvolvedCatchSprite({
   const { data: speciesData } = usePokemonSpecies(pokemonId ?? 0)
   const chainUrl = speciesData?.evolution_chain?.url ?? ''
   const { data: chainData } = useEvolutionChain(chainUrl)
+  const { activeRun } = useAppStore()
+  const guaranteedLevel = activeRun?.ruleset.guaranteedEvolutionLevel ?? null
 
   const evolvedName = useMemo(() => {
-    if (!chainData || levelCap === null || !pokemonName) return ''
+    if (!chainData || !pokemonName) return ''
+    if (guaranteedLevel !== null && levelCap !== null && levelCap >= guaranteedLevel) {
+      const resolved = resolveFullEvolution(chainData.chain, pokemonName)
+      return resolved !== pokemonName ? resolved : ''
+    }
+    if (levelCap === null) return ''
     const resolved = resolveEvolutionAtLevel(chainData.chain, pokemonName, levelCap)
     return resolved !== pokemonName ? resolved : ''
-  }, [chainData, levelCap, pokemonName])
+  }, [chainData, levelCap, pokemonName, guaranteedLevel])
 
   const { data: evolvedData } = usePokemonByName(evolvedName)
 

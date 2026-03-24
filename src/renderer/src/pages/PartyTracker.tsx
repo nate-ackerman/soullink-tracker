@@ -1,25 +1,38 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, X, Link2, AlertTriangle } from 'lucide-react'
-import { motion } from 'framer-motion'
+
 import { useQueries } from '@tanstack/react-query'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
+import { Tabs, TabContent } from '../components/ui/Tabs'
 import { PokemonSprite } from '../components/pokemon/PokemonSprite'
 import { EvolvedCatchSprite } from '../components/pokemon/EvolvedCatchSprite'
 import { TypeBadge } from '../components/pokemon/TypeBadge'
 import { useAppStore } from '../store/appStore'
-import { usePokemonById, usePokemonSpecies, useEvolutionChain, usePokemonByName } from '../api/pokeapi'
+import { usePokemonById, usePokemonSpecies, useEvolutionChain, usePokemonByName, getPokemonTypes } from '../api/pokeapi'
 import type { PokemonData, PokemonSpeciesData, EvolutionChainData } from '../api/pokeapi'
 import { formatPokemonName } from '../utils/cn'
-import { resolveEvolutionAtLevel } from '../utils/evolutionUtils'
-import type { Catch, Player, SoulLink, BattleRecord } from '../types'
+import { resolveEvolutionAtLevel, resolveFullEvolution } from '../utils/evolutionUtils'
+import { getTypeMatchups, getTypesForGeneration } from '../data/typeColors'
+import type { Catch, Player, SoulLink, PartySlot, BattleRecord, SavedParty } from '../types'
 
-// Normal/Flying Pokémon are treated as Flying primary for type-overlap purposes
-function getEffectivePrimaryType(data: PokemonData): string | null {
-  const primary = data.types.find((t) => t.slot === 1)?.type.name ?? null
-  const secondary = data.types.find((t) => t.slot === 2)?.type.name ?? null
+// Rating thresholds based on net-weak type count (weaknesses.length after netting)
+const RATING_THRESHOLDS: [number, string, string][] = [
+  [1,        'Excellent',          'bg-green-500/20 text-green-400 border-green-500/30'],
+  [2,        'Relatively Superior','bg-teal-500/20 text-teal-400 border-teal-500/30'],
+  [3,        'Above Average',      'bg-sky-500/20 text-sky-400 border-sky-500/30'],
+  [4,        'Decent',             'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'],
+  [Infinity, 'Below Average',      'bg-red-500/20 text-red-400 border-red-500/30'],
+]
+
+// Normal/Flying Pokémon are treated as Flying primary for type-overlap purposes.
+// Uses generation-correct types so e.g. Granbull counts as Normal in Gen 1-5.
+function getEffectivePrimaryType(data: PokemonData, generation: number): string | null {
+  const types = getPokemonTypes(data, generation)
+  const primary = types[0] ?? null
+  const secondary = types[1] ?? null
   if (primary === 'normal' && secondary === 'flying') return 'flying'
   return primary
 }
@@ -28,10 +41,13 @@ function getEffectivePrimaryType(data: PokemonData): string | null {
 
 function PokemonTypes({ pokemonId }: { pokemonId: number | null }) {
   const { data } = usePokemonById(pokemonId ?? 0)
+  const { activeRun } = useAppStore()
+  const generation = activeRun?.generation ?? 6
   if (!data || !pokemonId) return null
+  const types = getPokemonTypes(data, generation)
   return (
-    <div className="flex gap-0.5 flex-wrap mt-0.5">
-      {data.types.map((t) => <TypeBadge key={t.type.name} type={t.type.name} size="sm" />)}
+    <div className="flex gap-0.5 flex-wrap mt-0.5 justify-center">
+      {types.map((t) => <TypeBadge key={t} type={t} size="sm" />)}
     </div>
   )
 }
@@ -42,36 +58,24 @@ function useSlotEvolution(pokemonId: number, pokemonName: string | undefined, le
   const { data: speciesData } = usePokemonSpecies(pokemonId)
   const chainUrl = speciesData?.evolution_chain?.url ?? ''
   const { data: chainData } = useEvolutionChain(chainUrl)
+  const { activeRun } = useAppStore()
+  const guaranteedLevel = activeRun?.ruleset.guaranteedEvolutionLevel ?? null
 
   const evolvedName = useMemo(() => {
-    if (!chainData || levelCap === null || !pokemonName) return ''
+    if (!chainData || !pokemonName) return ''
+    if (guaranteedLevel !== null && levelCap !== null && levelCap >= guaranteedLevel) {
+      const resolved = resolveFullEvolution(chainData.chain, pokemonName)
+      return resolved !== pokemonName ? resolved : ''
+    }
+    if (levelCap === null) return ''
     const resolved = resolveEvolutionAtLevel(chainData.chain, pokemonName, levelCap)
     return resolved !== pokemonName ? resolved : ''
-  }, [chainData, levelCap, pokemonName])
+  }, [chainData, levelCap, pokemonName, guaranteedLevel])
 
   const { data: evolvedData } = usePokemonByName(evolvedName)
   return evolvedName && evolvedData ? evolvedData : null
 }
 
-// ── Avg BST hook (fixed 6 calls — stable) ────────────────────────────────────
-
-function usePartyBST(party: (Catch | undefined)[], evolutions: (PokemonData | null)[]): number | null {
-  const r0 = usePokemonById(party[0]?.pokemon_id ?? 0)
-  const r1 = usePokemonById(party[1]?.pokemon_id ?? 0)
-  const r2 = usePokemonById(party[2]?.pokemon_id ?? 0)
-  const r3 = usePokemonById(party[3]?.pokemon_id ?? 0)
-  const r4 = usePokemonById(party[4]?.pokemon_id ?? 0)
-  const r5 = usePokemonById(party[5]?.pokemon_id ?? 0)
-  const results = [r0, r1, r2, r3, r4, r5]
-  const bsts = results
-    .map((r, i) => {
-      if (!party[i]) return null
-      const data = evolutions[i] ?? r.data
-      return data ? data.stats.reduce((s, x) => s + x.base_stat, 0) : null
-    })
-    .filter((v): v is number => v !== null)
-  return bsts.length > 0 ? Math.round(bsts.reduce((a, b) => a + b, 0) / bsts.length) : null
-}
 
 // ── Soul link pair picker modal ───────────────────────────────────────────────
 
@@ -80,6 +84,12 @@ interface SoulLinkPickerProps {
   onClose: () => void
   runId: string
   onAdded: () => void
+}
+
+function EvolvedPickerName({ c, levelCap }: { c: Catch; levelCap: number | null }) {
+  const evolvedData = useSlotEvolution(c.pokemon_id ?? 0, c.pokemon_name ?? undefined, levelCap)
+  const name = evolvedData?.name ?? c.pokemon_name
+  return <span className="text-xs font-medium text-text-primary capitalize">{formatPokemonName(name)}</span>
 }
 
 function SoulLinkPicker({ open, onClose, runId, onAdded }: SoulLinkPickerProps) {
@@ -122,12 +132,14 @@ function SoulLinkPicker({ open, onClose, runId, onAdded }: SoulLinkPickerProps) 
     })),
   })
 
+  const generation = activeRun?.generation ?? 6
+
   const primaryTypeMap = useMemo(() => {
     const map = new Map<number, string>()
     allPokemonIds.forEach((id, i) => {
       const data = typeResults[i]?.data
       if (data) {
-        const type = getEffectivePrimaryType(data)
+        const type = getEffectivePrimaryType(data, generation)
         if (type) map.set(id, type)
       }
     })
@@ -234,27 +246,30 @@ function SoulLinkPicker({ open, onClose, runId, onAdded }: SoulLinkPickerProps) 
                 }`}
               >
                 <Link2 className={`w-3.5 h-3.5 shrink-0 ${blocked ? 'text-text-muted' : 'text-accent-teal'}`} />
-                <div className="flex items-center gap-3 flex-1 min-w-0 flex-wrap">
-                  {linkedCatches.map((c, idx) => {
-                    const p = players.find((pl) => pl.id === c.player_id)
-                    return (
-                      <div key={c.id} className="flex items-center gap-1.5">
-                        {idx > 0 && <span className="text-text-muted text-xs">↔</span>}
-                        <PokemonSprite pokemonId={c.pokemon_id} pokemonName={c.pokemon_name} size={32} />
-                        <div>
-                          <p className="text-xs font-medium text-text-primary">
-                            {formatPokemonName(c.nickname ?? c.pokemon_name)}
-                          </p>
-                          <div className="flex items-center gap-1">
-                            <span className="text-[10px] text-text-muted">Lv. {levelCap ?? 5}</span>
-                            {p && (
-                              <span className="text-[10px]" style={{ color: p.color }}>{p.name}</span>
-                            )}
+                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                  {link.nickname && (
+                    <span className="text-[11px] font-semibold text-text-primary">"{link.nickname}"</span>
+                  )}
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {linkedCatches.map((c, idx) => {
+                      const p = players.find((pl) => pl.id === c.player_id)
+                      return (
+                        <div key={c.id} className="flex items-center gap-1.5">
+                          {idx > 0 && <span className="text-text-muted text-xs">↔</span>}
+                          <EvolvedCatchSprite pokemonId={c.pokemon_id} pokemonName={c.pokemon_name} levelCap={levelCap} size={32} />
+                          <div>
+                            <EvolvedPickerName c={c} levelCap={levelCap} />
+                            <div className="flex items-center gap-1">
+                              <span className="text-[10px] text-text-muted">Lv. {levelCap ?? 5}</span>
+                              {p && (
+                                <span className="text-[10px]" style={{ color: p.color }}>{p.name}</span>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    )
-                  })}
+                      )
+                    })}
+                  </div>
                 </div>
                 {blocked && (
                   <span className="text-[10px] text-red-400 shrink-0">
@@ -276,115 +291,196 @@ function PartySlotCard({
   catch_,
   onRemove,
   evolvedTo,
-  levelCap,
 }: {
   catch_?: Catch
   onRemove: () => void
   evolvedTo?: PokemonData
   levelCap: number | null
 }) {
+  const CARD_H = 150
+  const navigate = useNavigate()
+
   if (!catch_) {
     return (
-      <div
-        className="rounded-lg border border-dashed border-border bg-elevated/20 flex flex-col items-center justify-center gap-1 p-2"
-        style={{ minHeight: 90 }}
-      >
-        <span className="text-text-muted text-xs opacity-50">—</span>
+      <div className="rounded-lg border border-dashed border-border bg-elevated/20 flex items-center justify-center" style={{ height: CARD_H }}>
+        <span className="text-text-muted text-xs opacity-30">—</span>
       </div>
     )
   }
 
-  const navigate = useNavigate()
   const displayId = evolvedTo?.id ?? catch_.pokemon_id
   const displayName = evolvedTo?.name ?? catch_.pokemon_name
 
   return (
     <div
       onClick={() => navigate('/learnset', { state: { pokemon: displayName ?? catch_.pokemon_name } })}
-      className="relative rounded-lg border border-accent-teal/30 bg-card p-2 flex flex-col items-center gap-1 cursor-pointer hover:opacity-75 transition-opacity"
+      className="relative rounded-lg border border-accent-teal/30 bg-card px-2 pt-4 pb-2 flex flex-col items-center gap-1 cursor-pointer hover:opacity-75 transition-opacity overflow-hidden"
+      style={{ height: CARD_H }}
     >
       <button
         onClick={(e) => { e.stopPropagation(); onRemove() }}
-        className="absolute top-0.5 right-0.5 p-0.5 rounded text-text-muted hover:text-red-400 hover:bg-elevated transition-colors"
+        className="absolute top-1 right-1 p-0.5 rounded text-text-muted hover:text-red-400 hover:bg-elevated transition-colors"
         title="Remove soul link from party"
       >
-        <X className="w-3 h-3" />
+        <X className="w-3.5 h-3.5" />
       </button>
       <PokemonSprite
         pokemonId={displayId}
         pokemonName={displayName}
-        size={48}
+        size={56}
         grayscale={catch_.status !== 'alive'}
       />
-      <div className="text-center w-full">
-        <p className="text-xs font-medium text-text-primary truncate">
-          {formatPokemonName(catch_.nickname ?? catch_.pokemon_name)}
+      <div className="text-center w-full flex flex-col items-center gap-0.5">
+        <p className="text-xs font-medium text-text-primary truncate capitalize w-full">
+          {formatPokemonName(displayName)}
         </p>
-        {evolvedTo && (
-          <p className="text-[10px] text-accent-teal truncate capitalize">→ {evolvedTo.name}</p>
-        )}
-        <p className="text-[10px] text-text-secondary">Lv. {levelCap ?? 5}</p>
-        <PokemonTypes pokemonId={displayId} />
+        {/* Fixed-height type area — always 2 rows tall so all cards match */}
+        <div className="flex justify-center gap-0.5 flex-wrap" style={{ minHeight: 38, alignContent: 'flex-start' }}>
+          <PokemonTypes pokemonId={displayId} />
+        </div>
       </div>
     </div>
   )
 }
 
-// ── Player party card (extracts hook call out of map loop) ────────────────────
+// ── Evolving slot card (component so hooks are per-instance, not per-render) ──
 
-function PlayerPartyCard({
-  player,
-  party,
-  runId,
-  onRemove,
-  levelCap,
-}: {
-  player: Player
-  party: (Catch | undefined)[]
-  runId: string
-  onRemove: (catchId: string) => void
+function EvolvingSlotCard({ catch_, onRemove, levelCap }: {
+  catch_?: Catch
+  onRemove: () => void
   levelCap: number | null
 }) {
-  // 6 fixed evolution lookups (each is 3 hooks = 18 hooks total, always called)
-  const evol0 = useSlotEvolution(party[0]?.pokemon_id ?? 0, party[0]?.pokemon_name ?? undefined, levelCap)
-  const evol1 = useSlotEvolution(party[1]?.pokemon_id ?? 0, party[1]?.pokemon_name ?? undefined, levelCap)
-  const evol2 = useSlotEvolution(party[2]?.pokemon_id ?? 0, party[2]?.pokemon_name ?? undefined, levelCap)
-  const evol3 = useSlotEvolution(party[3]?.pokemon_id ?? 0, party[3]?.pokemon_name ?? undefined, levelCap)
-  const evol4 = useSlotEvolution(party[4]?.pokemon_id ?? 0, party[4]?.pokemon_name ?? undefined, levelCap)
-  const evol5 = useSlotEvolution(party[5]?.pokemon_id ?? 0, party[5]?.pokemon_name ?? undefined, levelCap)
-  const evolutions = [evol0, evol1, evol2, evol3, evol4, evol5]
+  const evolvedTo = useSlotEvolution(catch_?.pokemon_id ?? 0, catch_?.pokemon_name ?? undefined, levelCap)
+  return <PartySlotCard catch_={catch_} onRemove={onRemove} evolvedTo={evolvedTo ?? undefined} levelCap={levelCap} />
+}
 
-  const avgBST = usePartyBST(party, evolutions)
+// ── Read-only combo slot card (for suggested party combos) ────────────────────
+
+function ComboSlotCard({ catch_, isNew, evolvedTo }: {
+  catch_?: Catch
+  isNew: boolean
+  evolvedTo?: PokemonData
+}) {
+  const CARD_H = 150
+
+  if (!catch_) {
+    return (
+      <div
+        className="rounded-lg border border-dashed border-border bg-elevated/20 flex items-center justify-center"
+        style={{ height: CARD_H }}
+      >
+        <span className="text-text-muted text-xs opacity-30">—</span>
+      </div>
+    )
+  }
+
+  const displayId = evolvedTo?.id ?? catch_.pokemon_id
+  const displayName = evolvedTo?.name ?? catch_.pokemon_name
 
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-      <Card className="overflow-hidden">
-        <div className="h-1.5" style={{ backgroundColor: player.color }} />
-        <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: player.color }} />
-            <span className="font-semibold text-text-primary">{player.name}</span>
-          </div>
-          <div className="flex items-center gap-3 text-xs text-text-muted">
-            {avgBST !== null && <span>Avg BST: {avgBST}</span>}
-            <span>{party.filter(Boolean).length}/6</span>
-          </div>
+    <div
+      className={`rounded-lg border bg-card px-2 pt-3 pb-2 flex flex-col items-center gap-1 overflow-hidden ${
+        isNew ? 'border-accent-teal/50' : 'border-border opacity-60'
+      }`}
+      style={{ height: CARD_H }}
+    >
+      <PokemonSprite
+        pokemonId={displayId}
+        pokemonName={displayName}
+        size={56}
+        grayscale={catch_.status !== 'alive'}
+      />
+      <div className="text-center w-full flex flex-col items-center gap-0.5">
+        <p className="text-xs font-medium text-text-primary truncate capitalize w-full">
+          {formatPokemonName(displayName)}
+        </p>
+        <div className="flex justify-center gap-0.5 flex-wrap" style={{ minHeight: 38, alignContent: 'flex-start' }}>
+          <PokemonTypes pokemonId={displayId} />
         </div>
-        <CardContent>
-          <div className="grid grid-cols-6 gap-2">
-            {party.map((catch_, slot) => (
-              <PartySlotCard
-                key={slot}
-                catch_={catch_}
-                onRemove={() => catch_ && onRemove(catch_.id)}
-                evolvedTo={evolutions[slot] ?? undefined}
-                levelCap={levelCap}
-              />
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    </motion.div>
+      </div>
+    </div>
+  )
+}
+
+function EvolvingComboCard({ catch_, isNew, levelCap }: {
+  catch_?: Catch
+  isNew: boolean
+  levelCap: number | null
+}) {
+  const evolvedTo = useSlotEvolution(catch_?.pokemon_id ?? 0, catch_?.pokemon_name ?? undefined, levelCap)
+  return <ComboSlotCard catch_={catch_} isNew={isNew} evolvedTo={evolvedTo ?? undefined} />
+}
+
+// ── Party link table ──────────────────────────────────────────────────────────
+
+function PartyLinkTable({ players, partySlots, catches, soulLinks, levelCap, onRemove }: {
+  players: Player[]
+  partySlots: PartySlot[]
+  catches: Catch[]
+  soulLinks: SoulLink[]
+  levelCap: number | null
+  onRemove: (catchId: string) => void
+}) {
+  const inPartyLinks = soulLinks.filter((sl) =>
+    sl.status === 'active' && sl.catch_ids.some((cid) => partySlots.some((ps) => ps.catch_id === cid))
+  )
+
+  // Order links by the earliest slot number across all players
+  const orderedLinks = [...inPartyLinks].sort((a, b) => {
+    const minSlot = (link: SoulLink) =>
+      Math.min(...link.catch_ids.map((cid) => partySlots.find((ps) => ps.catch_id === cid)?.slot ?? 99))
+    return minSlot(a) - minSlot(b)
+  })
+
+  if (orderedLinks.length === 0) return null
+
+  const LABEL_W = 96   // px — player name column
+  const COL_W   = 120  // px — each soul link column
+  const GAP     = 10   // px — gap between columns (gap-2.5)
+
+  return (
+    <Card>
+      <CardContent className="pt-4 pb-3 px-4 overflow-x-auto">
+        {/* Soul link column headers — spacer matches the player label width exactly */}
+        <div className="flex mb-3" style={{ gap: GAP }}>
+          <div style={{ width: LABEL_W, flexShrink: 0 }} />
+          {orderedLinks.map((link) => (
+            <div key={link.id} style={{ width: COL_W, flexShrink: 0 }} className="flex items-center justify-center px-1">
+              {link.nickname
+                ? <span className="text-xs font-semibold text-text-primary text-center leading-snug">"{link.nickname}"</span>
+                : <Link2 className="w-3.5 h-3.5 text-accent-teal" />}
+            </div>
+          ))}
+        </div>
+
+        {/* One row per player */}
+        <div className="flex flex-col" style={{ gap: GAP }}>
+          {players.map((p) => (
+            <div key={p.id} className="flex items-center" style={{ gap: GAP }}>
+              {/* Player label */}
+              <div style={{ width: LABEL_W, flexShrink: 0 }} className="flex items-center gap-2 pr-2">
+                <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
+                <span className="text-sm font-semibold truncate" style={{ color: p.color }}>{p.name}</span>
+              </div>
+              {/* One card per soul link */}
+              {orderedLinks.map((link) => {
+                const catchId = link.catch_ids.find((cid) => catches.find((x) => x.id === cid)?.player_id === p.id)
+                const c = catchId ? catches.find((x) => x.id === catchId) : undefined
+                return (
+                  <div key={link.id} style={{ width: COL_W, flexShrink: 0 }}>
+                    <EvolvingSlotCard
+                      catch_={c}
+                      onRemove={() => c && onRemove(c.id)}
+                      levelCap={levelCap}
+                    />
+                  </div>
+                )
+              })}
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -396,12 +492,14 @@ function TypeOverlapWarning({
   players,
   limit,
   perTeamLimit,
+  generation,
 }: {
   partySlots: { catch_id: string; player_id: string }[]
   catches: Catch[]
   players: Player[]
   limit: number
   perTeamLimit: number
+  generation: number
 }) {
   const pokemonIds = useMemo(() => {
     const ids = partySlots
@@ -428,12 +526,12 @@ function TypeOverlapWarning({
     pokemonIds.forEach((id, i) => {
       const data = results[i]?.data
       if (data) {
-        const type = getEffectivePrimaryType(data)
+        const type = getEffectivePrimaryType(data, generation)
         if (type) map.set(id, type)
       }
     })
     return map
-  }, [results, pokemonIds])
+  }, [results, pokemonIds, generation])
 
   const crossTeamViolations = useMemo(() => {
     if (!limit) return []
@@ -525,6 +623,7 @@ function BestCombosSection({
   maxSharedTypeCount,
   maxSameTeamTypeCount,
   levelCap,
+  generation,
 }: {
   activeLinks: SoulLink[]
   inPartyLinks: SoulLink[]
@@ -535,8 +634,11 @@ function BestCombosSection({
   maxSharedTypeCount: number
   maxSameTeamTypeCount: number
   levelCap: number | null
+  generation: number
 }) {
   const [applying, setApplying] = useState(false)
+  const { activeRun: _activeRun } = useAppStore()
+  const guaranteedLevel = _activeRun?.ruleset.guaranteedEvolutionLevel ?? null
 
   // Links not yet in party — candidates to add
   const availableLinks = useMemo(
@@ -587,7 +689,7 @@ function BestCombosSection({
         return res.json()
       },
       staleTime: Infinity,
-      enabled: id > 0 && levelCap !== null,
+      enabled: id > 0 && (levelCap !== null || guaranteedLevel !== null),
     })),
   })
 
@@ -621,9 +723,9 @@ function BestCombosSection({
     return map
   }, [chainResults, chainUrls])
 
-  // pokemonId → evolved name (empty map when no level cap)
+  // pokemonId → evolved name (empty map when no level cap and no guaranteed level)
   const evolvedNameMap = useMemo(() => {
-    if (levelCap === null) return new Map<number, string>()
+    if (levelCap === null && guaranteedLevel === null) return new Map<number, string>()
     const map = new Map<number, string>()
     pokemonIds.forEach((id, i) => {
       const name = pokemonNameMap.get(id)
@@ -631,11 +733,18 @@ function BestCombosSection({
       const chainUrl = speciesResults[i]?.data?.evolution_chain?.url ?? ''
       const chain = chainMap.get(chainUrl)
       if (!chain) return
-      const evolved = resolveEvolutionAtLevel(chain, name, levelCap)
+      let evolved: string
+      if (guaranteedLevel !== null && levelCap !== null && levelCap >= guaranteedLevel) {
+        evolved = resolveFullEvolution(chain, name)
+      } else if (levelCap !== null) {
+        evolved = resolveEvolutionAtLevel(chain, name, levelCap)
+      } else {
+        return
+      }
       if (evolved !== name) map.set(id, evolved)
     })
     return map
-  }, [pokemonIds, pokemonNameMap, speciesResults, chainMap, levelCap])
+  }, [pokemonIds, pokemonNameMap, speciesResults, chainMap, levelCap, guaranteedLevel])
 
   const evolvedNames = useMemo(() => [...new Set(evolvedNameMap.values())], [evolvedNameMap])
 
@@ -671,13 +780,51 @@ function BestCombosSection({
       const evolvedName = evolvedNameMap.get(id)
       const evolvedBst = evolvedName ? evolvedBstByName.get(evolvedName.toLowerCase()) : undefined
       bst.set(id, evolvedBst ?? data.stats.reduce((s, x) => s + x.base_stat, 0))
-      const effectiveType = getEffectivePrimaryType(data)
+      const effectiveType = getEffectivePrimaryType(data, generation)
       if (effectiveType) type.set(id, effectiveType)
     })
     return { effectiveBstMap: bst, primaryTypeMap: type }
-  }, [results, pokemonIds, evolvedNameMap, evolvedBstByName])
+  }, [results, pokemonIds, evolvedNameMap, evolvedBstByName, generation])
 
   const allLoaded = pokemonIds.length > 0 && pokemonIds.every((id) => effectiveBstMap.has(id))
+
+  // Full defensive matchups per Pokémon (uses base form types — good enough for coverage analysis)
+  const defensiveMatchupMap = useMemo(() => {
+    const map = new Map<number, Record<string, number>>()
+    pokemonIds.forEach((id, i) => {
+      const data = results[i]?.data
+      if (!data) return
+      map.set(id, getTypeMatchups(getPokemonTypes(data, generation), generation))
+    })
+    return map
+  }, [results, pokemonIds, generation])
+
+  const attackTypeList = useMemo(() => getTypesForGeneration(generation), [generation])
+
+  function scoreTypeMatchup(links: SoulLink[]): { worstNet: number; playerNets: Map<string, number> } {
+    const playerNets = new Map<string, number>()
+    for (const player of players) {
+      const ids = links
+        .flatMap((l) => l.catch_ids)
+        .map((cid) => catches.find((c) => c.id === cid))
+        .filter((c): c is Catch => c?.player_id === player.id && !!c.pokemon_id)
+        .map((c) => c.pokemon_id!)
+      if (ids.length === 0) continue
+      let netWeakCount = 0
+      for (const atkType of attackTypeList) {
+        let weak = 0, res = 0
+        for (const id of ids) {
+          const m = defensiveMatchupMap.get(id)?.[atkType] ?? 1
+          if (m > 1) weak++
+          else if (m < 1) res++
+        }
+        if (weak - res > 0) netWeakCount++
+      }
+      playerNets.set(player.id, netWeakCount)
+    }
+    const nets = [...playerNets.values()]
+    return { worstNet: nets.length > 0 ? Math.max(...nets) : 0, playerNets }
+  }
 
   function scoreCombo(links: SoulLink[]): { total: number; avg: number; weighted: number; worstWeighted: number } {
     const ids = links.flatMap((l) =>
@@ -686,7 +833,9 @@ function BestCombosSection({
     const bsts = ids.map((id) => effectiveBstMap.get(id)).filter((v): v is number => v !== undefined)
     const total = bsts.reduce((a, b) => a + b, 0)
     const avg = bsts.length > 0 ? Math.round(total / bsts.length) : 0
-    const weighted = Math.round(avg * Math.sqrt(links.length / 6))
+    // Weighted score: avg BST is the primary driver (85%), with a small bonus for fuller teams (15%).
+    // Using a linear blend so teams of the same size still rank by avg, not total.
+    const weighted = Math.round(avg * (0.85 + 0.15 * (links.length / 6)))
 
     // Worst-player weighted BST: maximize the weakest link
     const playerBsts = new Map<string, number[]>()
@@ -748,91 +897,147 @@ function BestCombosSection({
   }
 
   const { topCombos, topWeightedCombos, topMinWeightedCombos } = useMemo(() => {
-    if (!allLoaded || availableLinks.length === 0) return { topCombos: [], topWeightedCombos: [], topMinWeightedCombos: [] }
+    const empty = { topCombos: [], topWeightedCombos: [], topMinWeightedCombos: [] }
+    if (!allLoaded || availableLinks.length === 0) return empty
 
     const slotsUsed = inPartyLinks.length
     const slotsLeft = Math.max(0, 6 - slotsUsed)
+    if (slotsLeft === 0) return empty
 
-    let scored: { additions: SoulLink[]; combined: SoulLink[]; total: number; avg: number; weighted: number; worstWeighted: number }[]
+    let base: { additions: SoulLink[]; combined: SoulLink[]; total: number; avg: number; weighted: number; worstWeighted: number }[]
 
     if (maxSharedTypeCount === 0 && maxSameTeamTypeCount === 0) {
-      const k = Math.min(slotsLeft > 0 ? slotsLeft : 6, availableLinks.length)
-      if (k === 0 || availableLinks.length < k) return { topCombos: [], topWeightedCombos: [], topMinWeightedCombos: [] }
-      scored = getCombinations(availableLinks, k).map((additions) => {
+      const k = Math.min(slotsLeft, availableLinks.length)
+      if (k === 0 || availableLinks.length < k) return empty
+      base = getCombinations(availableLinks, k).map((additions) => {
         const combined = [...inPartyLinks, ...additions]
         return { additions, combined, ...scoreCombo(combined) }
       })
     } else {
-      scored = []
-      const maxK = Math.min(slotsLeft > 0 ? slotsLeft : 6, availableLinks.length)
+      base = []
+      const maxK = Math.min(slotsLeft, availableLinks.length)
       for (let k = maxK; k >= 1; k--) {
         for (const additions of getCombinations(availableLinks, k)) {
           const combined = [...inPartyLinks, ...additions]
           if (isValidCombo(combined)) {
-            scored.push({ additions, combined, ...scoreCombo(combined) })
+            base.push({ additions, combined, ...scoreCombo(combined) })
           }
         }
       }
     }
 
+    // Attach type matchup scores to every combo so renderComboRow can show ratings
+    const scored = base.map((s) => ({ ...s, ...scoreTypeMatchup(s.combined) }))
+
     return {
-      topCombos: [...scored].sort((a, b) => b.total - a.total).slice(0, 3),
-      topWeightedCombos: [...scored].sort((a, b) => b.weighted - a.weighted).slice(0, 3),
-      topMinWeightedCombos: [...scored].sort((a, b) => b.worstWeighted - a.worstWeighted).slice(0, 3),
+      topCombos: [...scored].sort((a, b) => b.total - a.total).slice(0, 2),
+      topWeightedCombos: [...scored].sort((a, b) => b.weighted - a.weighted).slice(0, 2),
+      topMinWeightedCombos: [...scored].sort((a, b) => b.worstWeighted - a.worstWeighted).slice(0, 2),
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allLoaded, availableLinks, inPartyLinks, effectiveBstMap, primaryTypeMap, catches, maxSharedTypeCount, maxSameTeamTypeCount])
+  }, [allLoaded, availableLinks, inPartyLinks, effectiveBstMap, primaryTypeMap, defensiveMatchupMap, catches, maxSharedTypeCount, maxSameTeamTypeCount])
 
   const hasTypeLimit = maxSharedTypeCount > 0 || maxSameTeamTypeCount > 0
   if (availableLinks.length === 0) return null
 
   function renderComboRow(
-    combo: { additions: SoulLink[]; combined: SoulLink[]; total: number; avg: number; weighted: number },
+    combo: { additions: SoulLink[]; combined: SoulLink[]; total: number; avg: number; weighted: number; worstNet: number; playerNets: Map<string, number> },
     rank: number,
     scoreLabel: string,
     scoreValue: number,
     secondaryLabel: string,
     secondaryValue: number | string,
   ) {
-    const { additions, combined } = combo
+    const LABEL_W = 96
+    const COL_W   = 120
+    const GAP     = 10
+
+    const { additions, combined, playerNets } = combo
+    const sortedCombined = [...combined].sort((a, b) => {
+      const avgBst = (link: SoulLink) => {
+        const bsts = link.catch_ids
+          .map((cid) => catches.find((c) => c.id === cid)?.pokemon_id)
+          .map((id) => (id ? effectiveBstMap.get(id) : undefined))
+          .filter((v): v is number => v !== undefined)
+        return bsts.length > 0 ? bsts.reduce((s, x) => s + x, 0) / bsts.length : 0
+      }
+      return avgBst(b) - avgBst(a)
+    })
+
     return (
-      <div key={rank} className="flex items-center gap-3 p-2 rounded-lg bg-elevated border border-border">
-        <span className="text-xs font-bold text-text-muted w-5 shrink-0">#{rank + 1}</span>
-        <div className="flex items-center gap-2 flex-1 flex-wrap min-w-0">
-          {combined.map((link, li) => {
-            const linkedCatches = link.catch_ids
-              .map((cid) => catches.find((c) => c.id === cid))
-              .filter(Boolean) as Catch[]
-            const isNew = additions.some((a) => a.id === link.id)
-            return (
-              <div key={link.id} className={`flex items-center gap-1 ${isNew ? 'ring-1 ring-accent-teal/50 rounded' : 'opacity-60'}`}>
-                {li > 0 && <span className="text-text-muted text-[10px] mx-0.5">·</span>}
-                {linkedCatches.map((c, ci) => {
-                  const p = players.find((pl) => pl.id === c.player_id)
+      <div key={rank} className="p-3 rounded-lg bg-elevated border border-border">
+        {/* Header: rank + scores + player ratings + Add button */}
+        <div className="flex items-start justify-between mb-3 gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-bold text-text-muted">#{rank + 1}</span>
+            <span className="text-xs font-medium text-text-secondary">{scoreLabel}: {scoreValue}</span>
+            {secondaryLabel && secondaryValue !== '' && (
+              <span className="text-[10px] text-text-muted">{secondaryLabel}: {secondaryValue}</span>
+            )}
+            <span className="text-[10px] text-text-muted">+{additions.length} link{additions.length !== 1 ? 's' : ''}</span>
+            {players.map((p) => {
+              const n = playerNets.get(p.id) ?? 0
+              const [,, cls] = RATING_THRESHOLDS.find(([max]) => n <= max)!
+              return (
+                <span key={p.id} className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${cls}`}>
+                  {p.name}: {n} weakness{n !== 1 ? 'es' : ''}
+                </span>
+              )
+            })}
+          </div>
+          <button
+            onClick={() => applyCombo(additions)}
+            disabled={applying}
+            className="text-xs px-3 py-1.5 rounded bg-accent-teal text-white hover:bg-teal-500 font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+            title="Add suggested links to party"
+          >
+            Add
+          </button>
+        </div>
+
+        {/* Table: soul links as columns, players as rows */}
+        <div className="overflow-x-auto">
+          <div className="flex mb-2" style={{ gap: GAP }}>
+            <div style={{ width: LABEL_W, flexShrink: 0 }} />
+            {sortedCombined.map((link) => {
+              const isNew = additions.some((a) => a.id === link.id)
+              return (
+                <div key={link.id} style={{ width: COL_W, flexShrink: 0 }} className="flex items-center justify-center px-1">
+                  {link.nickname ? (
+                    <span className={`text-xs font-semibold text-center leading-snug ${isNew ? 'text-text-primary' : 'text-text-muted'}`}>
+                      "{link.nickname}"
+                    </span>
+                  ) : (
+                    <Link2 className={`w-3.5 h-3.5 ${isNew ? 'text-accent-teal' : 'text-text-muted'}`} />
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          <div className="flex flex-col" style={{ gap: GAP }}>
+            {players.map((p) => (
+              <div key={p.id} className="flex items-center" style={{ gap: GAP }}>
+                <div style={{ width: LABEL_W, flexShrink: 0 }} className="flex items-center gap-2 pr-2">
+                  <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
+                  <span className="text-sm font-semibold truncate" style={{ color: p.color }}>{p.name}</span>
+                </div>
+                {sortedCombined.map((link) => {
+                  const catchId = link.catch_ids.find(
+                    (cid) => catches.find((x) => x.id === cid)?.player_id === p.id
+                  )
+                  const c = catchId ? catches.find((x) => x.id === catchId) : undefined
+                  const isNew = additions.some((a) => a.id === link.id)
                   return (
-                    <div key={c.id} className="flex items-center gap-0.5" title={`${formatPokemonName(c.nickname ?? c.pokemon_name)} (${p?.name})${isNew ? ' — new' : ' — in party'}`}>
-                      {ci > 0 && <Link2 className="w-2.5 h-2.5 text-accent-teal" />}
-                      <EvolvedCatchSprite pokemonId={c.pokemon_id} pokemonName={c.pokemon_name} levelCap={levelCap} size={24} />
+                    <div key={link.id} style={{ width: COL_W, flexShrink: 0 }}>
+                      <EvolvingComboCard catch_={c} isNew={isNew} levelCap={levelCap} />
                     </div>
                   )
                 })}
               </div>
-            )
-          })}
+            ))}
+          </div>
         </div>
-        <div className="flex flex-col items-end shrink-0">
-          <span className="text-xs font-medium text-text-secondary">{scoreLabel}: {scoreValue}</span>
-          <span className="text-[10px] text-text-muted">{secondaryLabel}: {secondaryValue}</span>
-          <span className="text-[10px] text-text-muted">+{additions.length} link{additions.length !== 1 ? 's' : ''}</span>
-        </div>
-        <button
-          onClick={() => applyCombo(additions)}
-          disabled={applying}
-          className="text-xs px-2 py-1 rounded border border-border hover:border-accent-teal hover:text-accent-teal text-text-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
-          title="Add suggested links to party"
-        >
-          Add
-        </button>
       </div>
     )
   }
@@ -917,6 +1122,81 @@ function BestCombosSection({
           )}
         </CardContent>
       </Card>
+
+    </div>
+  )
+}
+
+// ── Shared party snapshot renderer ───────────────────────────────────────────
+
+function PartySnapshotRows({ snapshot, catches, players }: {
+  snapshot: { player_id: string; slots: { slot: number; catch_id: string }[] }[]
+  catches: Catch[]
+  players: Player[]
+}) {
+  const { levelCap, soulLinks } = useAppStore()
+
+  const LABEL_W = 96
+  const COL_W   = 120
+  const GAP     = 10
+
+  const allCatchIds = new Set(snapshot.flatMap((ps) => ps.slots.map((s) => s.catch_id)))
+
+  // Find soul links represented in this snapshot (any status — may be broken/dead after the fact)
+  const snapshotLinks = soulLinks
+    .filter((sl) => sl.catch_ids.some((cid) => allCatchIds.has(cid)))
+    .sort((a, b) => {
+      const minSlot = (link: SoulLink) => {
+        let min = 99
+        for (const ps of snapshot) {
+          for (const s of ps.slots) {
+            if (link.catch_ids.includes(s.catch_id)) min = Math.min(min, s.slot)
+          }
+        }
+        return min
+      }
+      return minSlot(a) - minSlot(b)
+    })
+
+  return (
+    <div className="overflow-x-auto mt-2">
+      {/* Column headers */}
+      <div className="flex mb-2" style={{ gap: GAP }}>
+        <div style={{ width: LABEL_W, flexShrink: 0 }} />
+        {snapshotLinks.map((link) => (
+          <div key={link.id} style={{ width: COL_W, flexShrink: 0 }} className="flex items-center justify-center px-1">
+            {link.nickname
+              ? <span className="text-xs font-semibold text-text-primary text-center leading-snug">"{link.nickname}"</span>
+              : <Link2 className="w-3.5 h-3.5 text-accent-teal" />}
+          </div>
+        ))}
+      </div>
+
+      {/* One row per player */}
+      <div className="flex flex-col" style={{ gap: GAP }}>
+        {snapshot.map((ps) => {
+          const player = players.find((p) => p.id === ps.player_id)
+          return (
+            <div key={ps.player_id} className="flex items-center" style={{ gap: GAP }}>
+              <div style={{ width: LABEL_W, flexShrink: 0 }} className="flex items-center gap-2 pr-2">
+                <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: player?.color ?? '#888' }} />
+                <span className="text-sm font-semibold truncate" style={{ color: player?.color ?? '#888' }}>
+                  {player?.name ?? '?'}
+                </span>
+              </div>
+              {snapshotLinks.map((link) => {
+                const catchId = link.catch_ids.find((cid) => ps.slots.some((s) => s.catch_id === cid))
+                const c = catchId ? catches.find((x) => x.id === catchId) : undefined
+                return (
+                  <div key={link.id} style={{ width: COL_W, flexShrink: 0 }}>
+                    <EvolvingComboCard catch_={c} isNew={true} levelCap={levelCap} />
+                  </div>
+                )
+              })}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -927,14 +1207,12 @@ function PastBattlePartiesSection({
   battleRecords,
   catches,
   players,
-  soulLinks,
   runId,
   onLoaded,
 }: {
   battleRecords: BattleRecord[]
   catches: Catch[]
   players: Player[]
-  soulLinks: SoulLink[]
   runId: string
   onLoaded: () => void
 }) {
@@ -942,7 +1220,6 @@ function PastBattlePartiesSection({
   const victories = [...battleRecords].filter((b) => b.outcome === 'victory')
   if (victories.length === 0) return null
 
-  // Canonical key for a party snapshot — sorted so order doesn't matter
   function snapshotKey(battle: BattleRecord): string {
     return battle.party_snapshot
       .map((ps) => `${ps.player_id}:${[...ps.slots].sort((a, b) => a.slot - b.slot).map((s) => s.catch_id).join(',')}`)
@@ -950,7 +1227,6 @@ function PastBattlePartiesSection({
       .join('|')
   }
 
-  // Group battles by identical party, preserving chronological order of first use
   const groups: { key: string; battles: BattleRecord[] }[] = []
   const seen = new Map<string, number>()
   for (const battle of victories) {
@@ -984,80 +1260,294 @@ function PastBattlePartiesSection({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Past Battle Parties</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {[...groups].reverse().map(({ key, battles }) => {
-          const representative = battles[0]
-          return (
-            <div key={key} className="flex items-center gap-3 p-2 rounded-lg bg-elevated border border-border">
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-text-primary">
-                  {battles.map((b) => b.gym_leader_name).join(', ')}
-                </p>
-              </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                {(() => {
-                  const allCatchIds = representative.party_snapshot.flatMap((ps) => ps.slots.map((s) => s.catch_id))
-                  const assigned = new Set<string>()
-                  const groups: string[][] = []
-                  for (const cid of allCatchIds) {
-                    if (assigned.has(cid)) continue
-                    const link = soulLinks.find((sl) => sl.catch_ids.includes(cid))
-                    if (link) {
-                      const group = link.catch_ids.filter((id) => allCatchIds.includes(id))
-                      groups.push(group)
-                      group.forEach((id) => assigned.add(id))
-                    } else {
-                      groups.push([cid])
-                      assigned.add(cid)
-                    }
-                  }
-                  return groups.map((group, gi) => (
-                    <div key={gi} className="flex items-center gap-1">
-                      {gi > 0 && <span className="text-text-muted text-[10px] mx-0.5">·</span>}
-                      {group.map((cid, ci) => {
-                        const c = catches.find((x) => x.id === cid)
-                        const player = c ? players.find((p) => p.id === c.player_id) : undefined
-                        return c ? (
-                          <div key={cid} className="flex items-center gap-0.5" title={`${player?.name ?? ''}: ${c.nickname ?? c.pokemon_name ?? '?'}`}>
-                            {ci > 0 && <Link2 className="w-2.5 h-2.5 text-accent-teal" />}
-                            <EvolvedCatchSprite
-                              pokemonId={c.pokemon_id}
-                              pokemonName={c.pokemon_name}
-                              levelCap={null}
-                              size={24}
-                              grayscale={c.status === 'dead'}
-                            />
-                          </div>
-                        ) : null
-                      })}
-                    </div>
-                  ))
-                })()}
-              </div>
+    <div className="space-y-3">
+      {[...groups].reverse().map(({ key, battles }) => {
+        const rep = battles[0]
+        return (
+          <div key={key} className="p-3 rounded-lg bg-elevated border border-border">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-semibold text-text-primary">
+                {battles.map((b) => b.gym_leader_name).join(', ')}
+              </p>
               <button
-                onClick={() => loadParty(representative)}
-                disabled={loading === representative.id}
-                className="text-xs px-2 py-1 rounded border border-border text-text-muted hover:text-accent-teal hover:border-accent-teal transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                onClick={() => loadParty(rep)}
+                disabled={loading === rep.id}
+                className="text-xs px-3 py-1.5 rounded bg-accent-teal text-white hover:bg-teal-500 font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
               >
-                {loading === representative.id ? '…' : 'Load'}
+                {loading === rep.id ? '…' : 'Load'}
               </button>
             </div>
-          )
-        })}
-      </CardContent>
-    </Card>
+            <PartySnapshotRows snapshot={rep.party_snapshot} catches={catches} players={players} />
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── Saved Parties ─────────────────────────────────────────────────────────────
+
+function SavedPartiesSection({
+  savedParties,
+  catches,
+  players,
+  runId,
+  onLoaded,
+  onDeleted,
+}: {
+  savedParties: SavedParty[]
+  catches: Catch[]
+  players: Player[]
+  runId: string
+  onLoaded: () => void
+  onDeleted: () => void
+}) {
+  const [loading, setLoading] = useState<string | null>(null)
+
+  if (savedParties.length === 0) return null
+
+  async function loadParty(sp: SavedParty) {
+    setLoading(sp.id)
+    try {
+      for (const player of players) {
+        await window.api.party.clearAll(runId, player.id)
+      }
+      for (const ps of sp.party_snapshot) {
+        for (const { slot, catch_id } of ps.slots) {
+          const c = catches.find((x) => x.id === catch_id)
+          if (c && c.status === 'alive') {
+            await window.api.party.setSlot(runId, ps.player_id, slot, catch_id)
+          }
+        }
+      }
+      onLoaded()
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  async function deleteParty(id: string) {
+    await window.api.savedParties.delete(id)
+    onDeleted()
+  }
+
+  return (
+    <div className="space-y-3">
+      {savedParties.map((sp) => (
+        <div key={sp.id} className="p-3 rounded-lg bg-elevated border border-border">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-semibold text-text-primary truncate">{sp.name}</p>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => loadParty(sp)}
+                disabled={loading === sp.id}
+                className="text-xs px-3 py-1.5 rounded bg-accent-teal text-white hover:bg-teal-500 font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {loading === sp.id ? '…' : 'Load'}
+              </button>
+              <button
+                onClick={() => deleteParty(sp.id)}
+                disabled={loading === sp.id}
+                className="text-xs px-2 py-1 rounded border border-border text-text-muted hover:text-red-400 hover:border-red-700/50 transition-colors disabled:opacity-40"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+          <PartySnapshotRows snapshot={sp.party_snapshot} catches={catches} players={players} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Type analysis panel ───────────────────────────────────────────────────────
+
+function TypeAnalysisPanel({ partySlots, catches, players, generation }: {
+  partySlots: PartySlot[]
+  catches: Catch[]
+  players: Player[]
+  generation: number
+}) {
+  // Fetch all unique Pokémon IDs across all players in one batch (React Query deduplicates)
+  const allPokemonIds = useMemo(() => [...new Set(
+    partySlots
+      .map((ps) => catches.find((c) => c.id === ps.catch_id)?.pokemon_id ?? 0)
+      .filter((id) => id > 0)
+  )], [partySlots, catches])
+
+  const results = useQueries({
+    queries: allPokemonIds.map((id) => ({
+      queryKey: ['pokemon', id],
+      queryFn: async (): Promise<PokemonData> => {
+        const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${id}`)
+        if (!res.ok) throw new Error(`PokéAPI error: ${res.status}`)
+        return res.json()
+      },
+      staleTime: Infinity,
+      enabled: id > 0,
+    })),
+  })
+
+  const dataMap = useMemo(() => {
+    const map = new Map<number, PokemonData>()
+    allPokemonIds.forEach((id, i) => {
+      const data = results[i]?.data
+      if (data) map.set(id, data)
+    })
+    return map
+  }, [results, allPokemonIds])
+
+  const allLoaded = allPokemonIds.length === 0 || allPokemonIds.every((id) => dataMap.has(id))
+
+  const attackTypes = useMemo(() => getTypesForGeneration(generation), [generation])
+
+  // Compute analysis for one player's set of party slots
+  function analyseSlots(slots: PartySlot[]) {
+    const ids = slots
+      .map((ps) => catches.find((c) => c.id === ps.catch_id)?.pokemon_id ?? 0)
+      .filter((id) => id > 0 && dataMap.has(id))
+
+    if (ids.length === 0) return null
+
+    const teamMatchups = ids.map((id) =>
+      getTypeMatchups(getPokemonTypes(dataMap.get(id)!, generation), generation)
+    )
+
+    const unResisted: string[] = []
+    const weaknesses: [string, number][] = []
+    const resistances: [string, number][] = []
+
+    for (const atkType of attackTypes) {
+      let weak = 0, res = 0
+      for (const matchup of teamMatchups) {
+        const m = matchup[atkType] ?? 1
+        if (m > 1) weak++
+        else if (m < 1) res++
+      }
+      // Un-resisted: no team member resists this type at all
+      if (res === 0) unResisted.push(atkType)
+      // Net: weaknesses minus resistances; positive = net weak, negative = net resist
+      const net = weak - res
+      if (net > 0) weaknesses.push([atkType, net])
+      else if (net < 0) resistances.push([atkType, -net])
+    }
+
+    weaknesses.sort((a, b) => b[1] - a[1])
+    resistances.sort((a, b) => b[1] - a[1])
+
+    const recommendations = attackTypes
+      .map((type) => {
+        const matchup = getTypeMatchups([type], generation)
+        const covered = unResisted.filter((t) => (matchup[t] ?? 1) < 1).length
+        return { type, covered }
+      })
+      .filter((x) => x.covered > 0)
+      .sort((a, b) => b.covered - a.covered)
+      .map((x) => x.type)
+
+    const [, ratingLabel, ratingClass] = RATING_THRESHOLDS.find(([max]) => weaknesses.length <= max)!
+
+    return { weaknesses, resistances, unResisted, recommendations, ratingLabel, ratingClass }
+  }
+
+  if (partySlots.length === 0) {
+    return <p className="text-sm text-text-muted text-center py-8">Add soul links to see type coverage.</p>
+  }
+  if (!allLoaded) {
+    return <p className="text-sm text-text-muted text-center py-8">Loading type data…</p>
+  }
+
+  return (
+    <div className="space-y-4">
+      {players.map((player) => {
+        const playerSlots = partySlots.filter((ps) => ps.player_id === player.id)
+        if (playerSlots.length === 0) return null
+        const analysis = analyseSlots(playerSlots)
+        if (!analysis) return null
+        const { weaknesses, resistances, unResisted, recommendations, ratingClass } = analysis
+
+        return (
+          <Card key={player.id}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: player.color }} />
+                <span style={{ color: player.color }}>{player.name}</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className={`px-3 py-1.5 rounded-lg border text-xs font-semibold text-center ${ratingClass}`}>
+                {weaknesses.length} weakness{weaknesses.length !== 1 ? 'es' : ''}
+              </div>
+
+              <div>
+                <p className="text-[11px] font-medium text-text-muted uppercase tracking-wide mb-1.5">Weaknesses</p>
+                <div className="flex flex-wrap gap-1">
+                  {weaknesses.length === 0
+                    ? <span className="text-xs text-green-400">None!</span>
+                    : weaknesses.map(([type, count]) => (
+                      <div key={type} className="flex items-center gap-0.5">
+                        <TypeBadge type={type} size="sm" />
+                        {count > 1 && <span className="text-[10px] text-text-muted font-medium">×{count}</span>}
+                      </div>
+                    ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-[11px] font-medium text-text-muted uppercase tracking-wide mb-1.5">Resistances</p>
+                <div className="flex flex-wrap gap-1">
+                  {resistances.length === 0
+                    ? <span className="text-xs text-text-muted">None</span>
+                    : resistances.map(([type, count]) => (
+                      <div key={type} className="flex items-center gap-0.5">
+                        <TypeBadge type={type} size="sm" />
+                        {count > 1 && <span className="text-[10px] text-text-muted font-medium">×{count}</span>}
+                      </div>
+                    ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-[11px] font-medium text-text-muted uppercase tracking-wide mb-1.5">Un-Resisted</p>
+                <div className="flex flex-wrap gap-1">
+                  {unResisted.length === 0
+                    ? <span className="text-xs text-green-400">All covered!</span>
+                    : unResisted.map((type) => <TypeBadge key={type} type={type} size="sm" />)}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-[11px] font-medium text-text-muted uppercase tracking-wide mb-1.5">Recommended Additions</p>
+                <div className="flex flex-wrap gap-1">
+                  {recommendations.length === 0
+                    ? <span className="text-xs text-green-400">Well-covered!</span>
+                    : recommendations.map((type) => <TypeBadge key={type} type={type} size="sm" />)}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )
+      })}
+    </div>
   )
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
 
+const PARTY_TABS = [
+  { id: 'party',       label: 'Party' },
+  { id: 'suggestions', label: 'Suggestions' },
+  { id: 'saved',       label: 'Saved' },
+  { id: 'battles',     label: 'Battles' },
+]
+
 export function PartyTracker() {
-  const { activeRun, players, catches, partySlots, soulLinks, loadRunData, activeRunId, levelCap, battleRecords } = useAppStore()
+  const { activeRun, players, catches, partySlots, soulLinks, loadRunData, activeRunId, levelCap, battleRecords, savedParties, refreshSavedParties } = useAppStore()
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [saveModalOpen, setSaveModalOpen] = useState(false)
+  const [saveName, setSaveName] = useState('')
+  const [activeTab, setActiveTab] = useState('party')
 
   if (!activeRun) return <div className="p-6 text-text-muted">No active run</div>
 
@@ -1070,12 +1560,19 @@ export function PartyTracker() {
     if (activeRunId) await loadRunData(activeRunId)
   }
 
-  function getPlayerParty(playerId: string): (Catch | undefined)[] {
-    const slots = partySlots.filter((ps) => ps.player_id === playerId)
-    return [0, 1, 2, 3, 4, 5].map((slot) => {
-      const ps = slots.find((s) => s.slot === slot)
-      return ps ? catches.find((c) => c.id === ps.catch_id) : undefined
-    })
+  async function handleSaveParty() {
+    const name = saveName.trim()
+    if (!name || partySlots.length === 0) return
+    const snapshot = players.map((p) => ({
+      player_id: p.id,
+      slots: partySlots
+        .filter((ps) => ps.player_id === p.id)
+        .map((ps) => ({ slot: ps.slot, catch_id: ps.catch_id })),
+    })).filter((ps) => ps.slots.length > 0)
+    await window.api.savedParties.create({ run_id: activeRun!.id, name, party_snapshot: snapshot })
+    setSaveName('')
+    setSaveModalOpen(false)
+    await refreshSavedParties()
   }
 
   const activeLinks = soulLinks.filter((sl) => sl.status === 'active')
@@ -1088,107 +1585,155 @@ export function PartyTracker() {
   ).length
 
   return (
-    <div className="p-4 space-y-4">
-      {/* Add button + stats */}
-      <div className="flex items-center gap-3">
-        <Button onClick={() => setPickerOpen(true)} disabled={availableCount === 0}>
-          <Plus className="w-4 h-4" /> Add Soul Link
-        </Button>
-        <span className="text-xs text-text-muted">
-          {inPartyCount} soul link{inPartyCount !== 1 ? 's' : ''} in party
-          {availableCount > 0 && ` · ${availableCount} available`}
-        </span>
-      </div>
+    <div className="flex flex-col">
+      <Tabs tabs={PARTY_TABS} value={activeTab} onValueChange={setActiveTab}>
 
-      {/* Type overlap warning */}
-      {((activeRun.ruleset.maxSharedTypeCount ?? 0) > 0 || (activeRun.ruleset.maxSameTeamTypeCount ?? 0) > 0) && partySlots.length > 0 && (
-        <TypeOverlapWarning
-          partySlots={partySlots}
-          catches={catches}
-          players={players}
-          limit={activeRun.ruleset.maxSharedTypeCount ?? 0}
-          perTeamLimit={activeRun.ruleset.maxSameTeamTypeCount ?? 0}
-        />
-      )}
+        {/* ── Party tab ── */}
+        <TabContent value="party" className="p-4">
+          <div className="flex gap-4 items-start">
+            {/* Left: party editor */}
+            <div className="flex-1 min-w-0 space-y-4">
+              <div className="flex items-center gap-3 flex-wrap">
+                <Button onClick={() => setPickerOpen(true)} disabled={availableCount === 0} className="bg-accent-teal hover:bg-teal-500 focus:ring-accent-teal text-white">
+                  <Plus className="w-4 h-4" /> Add Soul Link
+                </Button>
+                <span className="text-xs text-text-muted">
+                  {inPartyCount} soul link{inPartyCount !== 1 ? 's' : ''} in party
+                  {availableCount > 0 && ` · ${availableCount} available`}
+                </span>
+                <div className="ml-auto flex items-center gap-2">
+                  {saveModalOpen ? (
+                    <>
+                      <input
+                        autoFocus
+                        value={saveName}
+                        onChange={(e) => setSaveName(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleSaveParty(); if (e.key === 'Escape') setSaveModalOpen(false) }}
+                        placeholder="Party name…"
+                        className="text-xs bg-elevated border border-border rounded px-2 py-1 text-text-primary placeholder:text-text-muted focus:outline-none focus:border-border-light w-36"
+                      />
+                      <button
+                        onClick={handleSaveParty}
+                        disabled={!saveName.trim() || partySlots.length === 0}
+                        className="text-xs px-3 py-1.5 rounded bg-accent-teal text-white hover:bg-teal-500 font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Save
+                      </button>
+                      <button onClick={() => setSaveModalOpen(false)} className="text-text-muted hover:text-text-secondary">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={async () => {
+                          for (const player of players) {
+                            await window.api.party.clearAll(activeRun!.id, player.id)
+                          }
+                          await handleAdded()
+                        }}
+                        disabled={partySlots.length === 0}
+                        className="text-xs px-2 py-1 rounded border border-border text-text-muted hover:text-red-400 hover:border-red-700/50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Clear Party
+                      </button>
+                      <button
+                        onClick={() => setSaveModalOpen(true)}
+                        disabled={partySlots.length === 0}
+                        className="text-xs px-3 py-1.5 rounded bg-accent-teal text-white hover:bg-teal-500 font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Save Party
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
 
-      {/* Per-player party grids */}
-      <div
-        className="grid gap-4"
-        style={{ gridTemplateColumns: `repeat(${Math.min(players.length, 2)}, 1fr)` }}
-      >
-        {players.map((player) => (
-          <PlayerPartyCard
-            key={player.id}
-            player={player}
-            party={getPlayerParty(player.id)}
-            runId={activeRun.id}
-            onRemove={handleRemove}
-            levelCap={levelCap}
-          />
-        ))}
-      </div>
+              {((activeRun.ruleset.maxSharedTypeCount ?? 0) > 0 || (activeRun.ruleset.maxSameTeamTypeCount ?? 0) > 0) && partySlots.length > 0 && (
+                <TypeOverlapWarning
+                  partySlots={partySlots}
+                  catches={catches}
+                  players={players}
+                  limit={activeRun.ruleset.maxSharedTypeCount ?? 0}
+                  perTeamLimit={activeRun.ruleset.maxSameTeamTypeCount ?? 0}
+                  generation={activeRun.generation}
+                />
+              )}
 
-      {/* Soul links in party summary */}
-      {inPartyCount > 0 && (
-        <Card>
-          <div className="px-4 py-3 border-b border-border">
-            <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
-              Soul Links in Party
-            </h3>
+              <PartyLinkTable
+                players={players}
+                partySlots={partySlots}
+                catches={catches}
+                soulLinks={soulLinks}
+                levelCap={levelCap}
+                onRemove={handleRemove}
+              />
+            </div>
+
+            {/* Right: type analysis */}
+            <div className="w-64 shrink-0">
+              <TypeAnalysisPanel
+                partySlots={partySlots}
+                catches={catches}
+                players={players}
+                generation={activeRun.generation}
+              />
+            </div>
           </div>
-          <CardContent className="space-y-2">
-            {soulLinks
-              .filter((sl) => sl.catch_ids.some((cid) => partySlots.some((ps) => ps.catch_id === cid)))
-              .map((sl) => {
-                const linkedCatches = sl.catch_ids
-                  .map((cid) => catches.find((c) => c.id === cid))
-                  .filter(Boolean) as Catch[]
-                return (
-                  <div key={sl.id} className="flex items-center gap-3">
-                    <Link2 className="w-3.5 h-3.5 text-accent-teal shrink-0" />
-                    {linkedCatches[0]?.nickname && (
-                      <span className="text-xs font-semibold text-text-primary shrink-0">"{linkedCatches[0].nickname}"</span>
-                    )}
-                    {linkedCatches.map((c, i) => {
-                      const p = players.find((pl) => pl.id === c.player_id)
-                      return (
-                        <div key={c.id} className="flex items-center gap-1.5">
-                          {i > 0 && <span className="text-text-muted text-xs">↔</span>}
-                          <PokemonSprite pokemonId={c.pokemon_id} pokemonName={c.pokemon_name} size={22} />
-                          <span className="text-xs text-text-secondary capitalize">{c.pokemon_name ?? '?'}</span>
-                          {p && <span className="text-[10px]" style={{ color: p.color }}>{p.name}</span>}
-                        </div>
-                      )
-                    })}
-                  </div>
-                )
-              })}
-          </CardContent>
-        </Card>
-      )}
+        </TabContent>
 
-      {/* Best party combos by BST */}
-      <BestCombosSection
-        activeLinks={activeLinks}
-        inPartyLinks={inPartyLinks}
-        catches={catches}
-        players={players}
-        runId={activeRun.id}
-        onAdded={handleAdded}
-        maxSharedTypeCount={activeRun.ruleset.maxSharedTypeCount ?? 0}
-        maxSameTeamTypeCount={activeRun.ruleset.maxSameTeamTypeCount ?? 0}
-        levelCap={levelCap}
-      />
+        {/* ── Suggestions tab ── */}
+        <TabContent value="suggestions" className="p-4 space-y-3">
+          {activeLinks.length === 0 ? (
+            <p className="text-sm text-text-muted">No active soul links yet.</p>
+          ) : (
+            <BestCombosSection
+              activeLinks={activeLinks}
+              inPartyLinks={inPartyLinks}
+              catches={catches}
+              players={players}
+              runId={activeRun.id}
+              onAdded={handleAdded}
+              maxSharedTypeCount={activeRun.ruleset.maxSharedTypeCount ?? 0}
+              maxSameTeamTypeCount={activeRun.ruleset.maxSameTeamTypeCount ?? 0}
+              levelCap={levelCap}
+              generation={activeRun.generation}
+            />
+          )}
+        </TabContent>
 
-      {/* Past battle parties */}
-      <PastBattlePartiesSection
-        battleRecords={battleRecords}
-        catches={catches}
-        players={players}
-        soulLinks={soulLinks}
-        runId={activeRun.id}
-        onLoaded={handleAdded}
-      />
+        {/* ── Saved tab ── */}
+        <TabContent value="saved" className="p-4">
+          {savedParties.length === 0 ? (
+            <p className="text-sm text-text-muted">No saved parties yet. Build a party and use Save Party.</p>
+          ) : (
+            <SavedPartiesSection
+              savedParties={savedParties}
+              catches={catches}
+              players={players}
+              runId={activeRun.id}
+              onLoaded={handleAdded}
+              onDeleted={refreshSavedParties}
+            />
+          )}
+        </TabContent>
+
+        {/* ── Battles tab ── */}
+        <TabContent value="battles" className="p-4">
+          {battleRecords.filter((b) => b.outcome === 'victory').length === 0 ? (
+            <p className="text-sm text-text-muted">No completed battles yet.</p>
+          ) : (
+            <PastBattlePartiesSection
+              battleRecords={battleRecords}
+              catches={catches}
+              players={players}
+              runId={activeRun.id}
+              onLoaded={handleAdded}
+            />
+          )}
+        </TabContent>
+
+      </Tabs>
 
       <SoulLinkPicker
         open={pickerOpen}

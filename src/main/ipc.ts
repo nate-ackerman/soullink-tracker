@@ -8,7 +8,8 @@ import {
   dbAddSoulLinkToParty, dbRemoveSoulLinkFromParty,
   dbGetNotesByRun, dbCreateNote, dbUpdateNote, dbDeleteNote,
   dbExportRun, dbImportRun,
-  dbGetBattlesByRun, dbCreateBattle, dbUpdateBattle, dbDeleteBattle
+  dbGetBattlesByRun, dbCreateBattle, dbUpdateBattle, dbDeleteBattle,
+  dbGetSavedPartiesByRun, dbCreateSavedParty, dbDeleteSavedParty
 } from './db'
 
 export function registerIpcHandlers(): void {
@@ -57,7 +58,7 @@ export function registerIpcHandlers(): void {
   // ── Soul Links ──────────────────────────────────────────────────────────────
   ipcMain.handle('soulLinks:getByRun', (_e, runId: string) => dbGetSoulLinksByRun(runId))
   ipcMain.handle('soulLinks:create', (_e, data) => dbCreateSoulLink(data))
-  ipcMain.handle('soulLinks:update', (_e, id: string, catchIds: string[]) => dbUpdateSoulLink(id, catchIds))
+  ipcMain.handle('soulLinks:update', (_e, id: string, data: { catchIds?: string[]; nickname?: string | null }) => dbUpdateSoulLink(id, data))
   ipcMain.handle('soulLinks:delete', (_e, id: string) => dbDeleteSoulLink(id))
 
   // ── Party ───────────────────────────────────────────────────────────────────
@@ -79,4 +80,9 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('battles:create', (_e, data) => dbCreateBattle(data))
   ipcMain.handle('battles:update', (_e, id: string, data) => dbUpdateBattle(id, data))
   ipcMain.handle('battles:delete', (_e, id: string) => dbDeleteBattle(id))
+
+  // ── Saved Parties ───────────────────────────────────────────────────────────
+  ipcMain.handle('savedParties:getByRun', (_e, runId: string) => dbGetSavedPartiesByRun(runId))
+  ipcMain.handle('savedParties:create', (_e, data) => dbCreateSavedParty(data))
+  ipcMain.handle('savedParties:delete', (_e, id: string) => dbDeleteSavedParty(id))
 }
