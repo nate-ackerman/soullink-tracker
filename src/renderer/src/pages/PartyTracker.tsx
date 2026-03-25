@@ -11,6 +11,7 @@ import { PokemonSprite } from '../components/pokemon/PokemonSprite'
 import { EvolvedCatchSprite } from '../components/pokemon/EvolvedCatchSprite'
 import { TypeBadge } from '../components/pokemon/TypeBadge'
 import { useAppStore } from '../store/appStore'
+import { useApi } from '../lib/useApi'
 import { usePokemonById, usePokemonSpecies, useEvolutionChain, usePokemonByName, getPokemonTypes } from '../api/pokeapi'
 import type { PokemonData, PokemonSpeciesData, EvolutionChainData } from '../api/pokeapi'
 import { formatPokemonName } from '../utils/cn'
@@ -94,6 +95,7 @@ function EvolvedPickerName({ c, levelCap }: { c: Catch; levelCap: number | null 
 
 function SoulLinkPicker({ open, onClose, runId, onAdded }: SoulLinkPickerProps) {
   const { soulLinks, catches, players, partySlots, activeRun, levelCap } = useAppStore()
+  const api = useApi()
   const [loading, setLoading] = useState(false)
 
   const maxTypeLimit = activeRun?.ruleset.maxSharedTypeCount ?? 0
@@ -208,7 +210,7 @@ function SoulLinkPicker({ open, onClose, runId, onAdded }: SoulLinkPickerProps) 
   async function handleSelect(link: SoulLink) {
     setLoading(true)
     try {
-      await window.api.party.addSoulLink(runId, link.catch_ids[0])
+      await api.party.addSoulLink(runId, link.catch_ids[0])
       onAdded()
       onClose()
     } finally {
@@ -638,6 +640,7 @@ function BestCombosSection({
 }) {
   const [applying, setApplying] = useState(false)
   const { activeRun: _activeRun } = useAppStore()
+  const api = useApi()
   const guaranteedLevel = _activeRun?.ruleset.guaranteedEvolutionLevel ?? null
 
   // Links not yet in party — candidates to add
@@ -1046,7 +1049,7 @@ function BestCombosSection({
     setApplying(true)
     try {
       for (const link of additions) {
-        await window.api.party.addSoulLink(runId, link.catch_ids[0])
+        await api.party.addSoulLink(runId, link.catch_ids[0])
       }
       onAdded()
     } finally {
@@ -1217,6 +1220,7 @@ function PastBattlePartiesSection({
   onLoaded: () => void
 }) {
   const [loading, setLoading] = useState<string | null>(null)
+  const api = useApi()
   const victories = [...battleRecords].filter((b) => b.outcome === 'victory')
   if (victories.length === 0) return null
 
@@ -1243,13 +1247,13 @@ function PastBattlePartiesSection({
     setLoading(battle.id)
     try {
       for (const player of players) {
-        await window.api.party.clearAll(runId, player.id)
+        await api.party.clearAll(runId, player.id)
       }
       for (const ps of battle.party_snapshot) {
         for (const { slot, catch_id } of ps.slots) {
           const c = catches.find((x) => x.id === catch_id)
           if (c && c.status === 'alive') {
-            await window.api.party.setSlot(runId, ps.player_id, slot, catch_id)
+            await api.party.setSlot(runId, ps.player_id, slot, catch_id)
           }
         }
       }
@@ -1303,6 +1307,7 @@ function SavedPartiesSection({
   onDeleted: () => void
 }) {
   const [loading, setLoading] = useState<string | null>(null)
+  const api = useApi()
 
   if (savedParties.length === 0) return null
 
@@ -1310,13 +1315,13 @@ function SavedPartiesSection({
     setLoading(sp.id)
     try {
       for (const player of players) {
-        await window.api.party.clearAll(runId, player.id)
+        await api.party.clearAll(runId, player.id)
       }
       for (const ps of sp.party_snapshot) {
         for (const { slot, catch_id } of ps.slots) {
           const c = catches.find((x) => x.id === catch_id)
           if (c && c.status === 'alive') {
-            await window.api.party.setSlot(runId, ps.player_id, slot, catch_id)
+            await api.party.setSlot(runId, ps.player_id, slot, catch_id)
           }
         }
       }
@@ -1327,7 +1332,7 @@ function SavedPartiesSection({
   }
 
   async function deleteParty(id: string) {
-    await window.api.savedParties.delete(id)
+    await api.savedParties.delete(id)
     onDeleted()
   }
 
@@ -1544,6 +1549,7 @@ const PARTY_TABS = [
 
 export function PartyTracker() {
   const { activeRun, players, catches, partySlots, soulLinks, loadRunData, activeRunId, levelCap, battleRecords, savedParties, refreshSavedParties } = useAppStore()
+  const api = useApi()
   const [pickerOpen, setPickerOpen] = useState(false)
   const [saveModalOpen, setSaveModalOpen] = useState(false)
   const [saveName, setSaveName] = useState('')
@@ -1552,7 +1558,7 @@ export function PartyTracker() {
   if (!activeRun) return <div className="p-6 text-text-muted">No active run</div>
 
   async function handleRemove(catchId: string) {
-    await window.api.party.removeSoulLink(activeRun!.id, catchId)
+    await api.party.removeSoulLink(activeRun!.id, catchId)
     if (activeRunId) await loadRunData(activeRunId)
   }
 
@@ -1569,7 +1575,7 @@ export function PartyTracker() {
         .filter((ps) => ps.player_id === p.id)
         .map((ps) => ({ slot: ps.slot, catch_id: ps.catch_id })),
     })).filter((ps) => ps.slots.length > 0)
-    await window.api.savedParties.create({ run_id: activeRun!.id, name, party_snapshot: snapshot })
+    await api.savedParties.create({ run_id: activeRun!.id, name, party_snapshot: snapshot })
     setSaveName('')
     setSaveModalOpen(false)
     await refreshSavedParties()
@@ -1628,7 +1634,7 @@ export function PartyTracker() {
                       <button
                         onClick={async () => {
                           for (const player of players) {
-                            await window.api.party.clearAll(activeRun!.id, player.id)
+                            await api.party.clearAll(activeRun!.id, player.id)
                           }
                           await handleAdded()
                         }}

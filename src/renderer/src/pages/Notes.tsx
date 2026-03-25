@@ -3,6 +3,7 @@ import { Plus, FileText, Trash2, Filter } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { Card, CardContent } from '../components/ui/Card'
 import { useAppStore } from '../store/appStore'
+import { useApi } from '../lib/useApi'
 import type { Note } from '../types'
 import { getGameById } from '../data/games'
 
@@ -12,6 +13,7 @@ function formatDate(iso: string): string {
 
 export function Notes() {
   const { activeRun, notes, catches, players, refreshNotes, activeRunId } = useAppStore()
+  const api = useApi()
   const [selectedNote, setSelectedNote] = useState<Note | null>(null)
   const [filterBy, setFilterBy] = useState<'all' | 'route' | 'pokemon' | 'player'>('all')
   const [filterValue, setFilterValue] = useState('')
@@ -27,7 +29,7 @@ export function Notes() {
 
   async function handleNewNote() {
     if (!activeRun) return
-    const note = await window.api.notes.create({
+    const note = await api.notes.create({
       run_id: activeRun.id,
       content: 'New note...'
     })
@@ -36,7 +38,7 @@ export function Notes() {
   }
 
   async function handleDelete(id: string) {
-    await window.api.notes.delete(id)
+    await api.notes.delete(id)
     if (selectedNote?.id === id) setSelectedNote(null)
     await refreshNotes()
   }
@@ -47,7 +49,7 @@ export function Notes() {
     if (selectedNote) {
       setSaveTimer(
         setTimeout(async () => {
-          await window.api.notes.update(selectedNote.id, val)
+          await api.notes.update(selectedNote.id, val)
           await refreshNotes()
         }, 800)
       )

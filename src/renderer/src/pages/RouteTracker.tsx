@@ -9,6 +9,7 @@ import { ScrollArea } from '../components/ui/ScrollArea'
 import { PokemonSprite } from '../components/pokemon/PokemonSprite'
 import { StatusBadge } from '../components/pokemon/StatusBadge'
 import { useAppStore } from '../store/appStore'
+import { useApi } from '../lib/useApi'
 import { getGameById } from '../data/games'
 import type { RouteInfo } from '../data/games'
 import { usePokemonSearch, usePokemonByName } from '../api/pokeapi'
@@ -127,6 +128,7 @@ function LogCatchModal({ open, onClose, routeId, player, runId, defaultLevel, on
   const [pokemonId, setPokemonId] = useState<number | undefined>()
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(false)
+  const api = useApi()
 
   const { data: resolved } = usePokemonByName(pokemonName)
 
@@ -135,7 +137,7 @@ function LogCatchModal({ open, onClose, routeId, player, runId, defaultLevel, on
     setLoading(true)
     try {
       const resolvedId = resolved?.id ?? pokemonId
-      await window.api.catches.create({
+      await api.catches.create({
         run_id: runId,
         player_id: player.id,
         route_id: routeId,
@@ -187,6 +189,7 @@ function EditPokemonModal({
   const [pokemonId, setPokemonId] = useState<number | undefined>()
   const [loading, setLoading] = useState(false)
   const prevId = useRef<string | undefined>()
+  const api = useApi()
   const { data: resolved } = usePokemonByName(pokemonName)
 
   // Reset state when a different catch is opened
@@ -203,7 +206,7 @@ function EditPokemonModal({
     setLoading(true)
     try {
       const resolvedId = resolved?.id ?? pokemonId
-      await window.api.catches.update(catch_.id, {
+      await api.catches.update(catch_.id, {
         pokemon_id: resolvedId ?? null,
         pokemon_name: pokemonName,
       } as Partial<Catch>)
@@ -246,12 +249,13 @@ function KillModal({
   open: boolean; onClose: () => void; catch_: Catch | null; routeId: string; onKilled: () => void
 }) {
   const [loading, setLoading] = useState(false)
+  const api = useApi()
   if (!catch_) return null
 
   async function handleKill() {
     setLoading(true)
     try {
-      await window.api.catches.kill(catch_!.id, routeId)
+      await api.catches.kill(catch_!.id, routeId)
       onKilled()
       onClose()
     } finally {
@@ -288,11 +292,12 @@ function FailEncounterModal({
   runId: string; routeId: string; onFailed: () => void
 }) {
   const [loading, setLoading] = useState(false)
+  const api = useApi()
 
   async function handleFail() {
     setLoading(true)
     try {
-      await window.api.catches.failEncounter(runId, player.id, routeId)
+      await api.catches.failEncounter(runId, player.id, routeId)
       onFailed()
       onClose()
     } finally {
@@ -530,6 +535,7 @@ function RouteStatusBadge({ status }: { status: RouteStatus }) {
 
 export function RouteTracker() {
   const { activeRun, players, catches, soulLinks, loadRunData, activeRunId, levelCap, battleRecords } = useAppStore()
+  const api = useApi()
   const [selectedRoute, setSelectedRoute] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [logModal, setLogModal] = useState<{ open: boolean; playerId: string }>({ open: false, playerId: '' })
@@ -658,7 +664,7 @@ export function RouteTracker() {
   }
 
   async function saveRuleset(updates: Partial<typeof activeRun.ruleset>) {
-    await window.api.runs.update(activeRun.id, {
+    await api.runs.update(activeRun.id, {
       ruleset: { ...activeRun.ruleset, ...updates }
     })
     await refresh()
@@ -669,9 +675,9 @@ export function RouteTracker() {
     setClearing(true)
     try {
       const routeCatchIds = catches.filter((c) => c.route_id === selectedRoute).map((c) => c.id)
-      for (const id of routeCatchIds) await window.api.catches.delete(id)
+      for (const id of routeCatchIds) await api.catches.delete(id)
       const link = soulLinks.find((sl) => sl.route_id === selectedRoute)
-      if (link) await window.api.soulLinks.delete(link.id)
+      if (link) await api.soulLinks.delete(link.id)
       await refresh()
     } finally {
       setClearing(false)
@@ -685,7 +691,7 @@ export function RouteTracker() {
     try {
       const targets = catches.filter((c) => c.route_id === selectedRoute && c.status !== 'failed')
       for (const c of targets) {
-        await window.api.catches.update(c.id, { nickname: linkNickname || null } as Partial<Catch>)
+        await api.catches.update(c.id, { nickname: linkNickname || null } as Partial<Catch>)
       }
       await refresh()
     } finally {

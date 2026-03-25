@@ -7,6 +7,7 @@ import { Badge } from '../components/ui/Badge'
 import { TypeBadge } from '../components/pokemon/TypeBadge'
 import { EvolvedCatchSprite } from '../components/pokemon/EvolvedCatchSprite'
 import { useAppStore } from '../store/appStore'
+import { useApi } from '../lib/useApi'
 import { getGameById } from '../data/games'
 import { usePokemonSpecies, useEvolutionChain, usePokemonByName } from '../api/pokeapi'
 import { resolveEvolutionAtLevel } from '../utils/evolutionUtils'
@@ -236,7 +237,7 @@ export function RunDashboard() {
     activeRun, activeRunId, players, catches, soulLinks, partySlots,
     loadRunData, levelCap, setLevelCap, battleRecords, refreshBattles
   } = useAppStore()
-
+  const api = useApi()
 
   const [showDeathModal, setShowDeathModal] = useState(false)
   const [deathPrefillRoute, setDeathPrefillRoute] = useState<string | undefined>()
@@ -357,7 +358,7 @@ export function RunDashboard() {
         .map((ps) => ({ slot: ps.slot, catch_id: ps.catch_id }))
       return { player_id: player.id, slots }
     })
-    await window.api.battles.create({
+    await api.battles.create({
       run_id: activeRun.id,
       gym_leader_name: nextGym.name,
       level_cap: adjustedCap(nextGym.levelCap),
@@ -368,7 +369,7 @@ export function RunDashboard() {
 
   async function handleCompleteBattle() {
     if (!pendingBattle || !activeRunId) return
-    await window.api.battles.update(pendingBattle.id, { outcome: 'victory' })
+    await api.battles.update(pendingBattle.id, { outcome: 'victory' })
     await refreshBattles()
     // Auto-fail the run if every party slot is dead after the battle
     const allPartyDead = partySlots.length > 0 && partySlots.every((ps) => {
@@ -376,13 +377,13 @@ export function RunDashboard() {
       return c?.status === 'dead'
     })
     if (allPartyDead) {
-      await window.api.runs.update(activeRunId, { status: 'failed' })
+      await api.runs.update(activeRunId, { status: 'failed' })
       if (activeRunId) await loadRunData(activeRunId)
     }
   }
 
   async function handleMarkDeath(catchId: string, route: string) {
-    await window.api.catches.kill(catchId, route)
+    await api.catches.kill(catchId, route)
     if (activeRunId) await loadRunData(activeRunId)
   }
 

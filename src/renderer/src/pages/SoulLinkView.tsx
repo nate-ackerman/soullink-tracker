@@ -6,6 +6,7 @@ import { Card, CardContent } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { EvolvedCatchSprite } from '../components/pokemon/EvolvedCatchSprite'
 import { useAppStore } from '../store/appStore'
+import { useApi } from '../lib/useApi'
 import { getGameById } from '../data/games'
 import { usePokemonSpecies, useEvolutionChain, usePokemonByName } from '../api/pokeapi'
 import { resolveEvolutionAtLevel } from '../utils/evolutionUtils'
@@ -85,9 +86,11 @@ function LinkRow({ link, catches, players, routeName, levelCap, onMarkDeath, onR
   const [nickValue, setNickValue] = useState(link.nickname ?? '')
   const inputRef = useRef<HTMLInputElement>(null)
 
+  const api = useApi()
+
   async function saveNickname() {
     const trimmed = nickValue.trim()
-    await window.api.soulLinks.update(link.id, { nickname: trimmed || null })
+    await api.soulLinks.update(link.id, { nickname: trimmed || null })
     setEditingNick(false)
     onRefresh()
   }
@@ -277,6 +280,7 @@ function DeathModal({ link, catches, players, levelCap, onConfirm, onClose }: De
 
 export function SoulLinkView() {
   const { activeRun, activeRunId, catches, soulLinks, players, levelCap, loadRunData } = useAppStore()
+  const api = useApi()
   const [filter, setFilter] = useState<FilterMode>('all')
   const [deathLink, setDeathLink] = useState<SoulLink | null>(null)
 
@@ -305,7 +309,7 @@ export function SoulLinkView() {
   const stats = { total: soulLinks.length, active: active.length, broken: broken.length }
 
   async function handleMarkDeath(catchId: string, route: string) {
-    await window.api.catches.kill(catchId, route)
+    await api.catches.kill(catchId, route)
     if (activeRunId) await loadRunData(activeRunId)
     setDeathLink(null)
   }

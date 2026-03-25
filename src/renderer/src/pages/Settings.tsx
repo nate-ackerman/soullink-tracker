@@ -5,6 +5,7 @@ import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Switch } from '../components/ui/Switch'
 import { useAppStore } from '../store/appStore'
+import { useApi } from '../lib/useApi'
 
 function SliderRow({
   label,
@@ -55,6 +56,7 @@ function SliderRow({
 
 export function Settings() {
   const { activeRun, activeRunId, loadRunData } = useAppStore()
+  const api = useApi()
   const [runName, setRunName] = useState(activeRun?.name ?? '')
   const [maxSharedTypeCount, setMaxSharedTypeCount] = useState(
     activeRun?.ruleset.maxSharedTypeCount ?? 0
@@ -93,7 +95,7 @@ export function Settings() {
     if (!runName.trim()) return
     setSaving(true)
     try {
-      await window.api.runs.update(activeRun!.id, {
+      await api.runs.update(activeRun!.id, {
         name: runName.trim(),
         ruleset: { ...activeRun!.ruleset, maxSharedTypeCount, maxSameTeamTypeCount, trainerLevelModifier, guaranteedEvolutionLevel: currentGuaranteed },
       })
