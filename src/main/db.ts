@@ -281,10 +281,6 @@ export function dbCreateCatch(data: {
   pokemon_name?: string
   nickname?: string
   level?: number
-  gender?: string
-  nature?: string
-  ability?: string
-  held_item?: string
   notes?: string
 }) {
   const database = getDb()
@@ -292,15 +288,13 @@ export function dbCreateCatch(data: {
   const now = new Date().toISOString()
   database
     .prepare(
-      `INSERT INTO catches (id, run_id, player_id, route_id, pokemon_id, pokemon_name, nickname, level, gender, nature, ability, held_item, status, notes, caught_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'alive', ?, ?)`
+      `INSERT INTO catches (id, run_id, player_id, route_id, pokemon_id, pokemon_name, nickname, level, status, notes, caught_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'alive', ?, ?)`
     )
     .run(
       id, data.run_id, data.player_id, data.route_id,
       data.pokemon_id ?? null, data.pokemon_name ?? null,
       data.nickname ?? null, data.level ?? 1,
-      data.gender ?? null, data.nature ?? null,
-      data.ability ?? null, data.held_item ?? null,
       data.notes ?? null, now
     )
   const newCatch = database.prepare('SELECT * FROM catches WHERE id = ?').get(id)
@@ -311,7 +305,7 @@ export function dbCreateCatch(data: {
 
 export function dbUpdateCatch(id: string, data: Record<string, any>) {
   const database = getDb()
-  const allowed = ['pokemon_id', 'pokemon_name', 'nickname', 'level', 'gender', 'nature', 'ability', 'held_item', 'status', 'notes', 'died_at', 'died_route']
+  const allowed = ['pokemon_id', 'pokemon_name', 'nickname', 'level', 'status', 'notes', 'died_at', 'died_route']
   const fields: string[] = []
   const values: any[] = []
   for (const key of allowed) {
@@ -652,12 +646,11 @@ export function dbImportRun(data: any) {
 
     for (const c of (data.catches as any[])) {
       database.prepare(
-        `INSERT INTO catches (id, run_id, player_id, route_id, pokemon_id, pokemon_name, nickname, level, gender, nature, ability, held_item, status, notes, caught_at, died_at, died_route)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO catches (id, run_id, player_id, route_id, pokemon_id, pokemon_name, nickname, level, status, notes, caught_at, died_at, died_route)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).run(
         remap(c.id), newRunId, remap(c.player_id), c.route_id,
         c.pokemon_id ?? null, c.pokemon_name ?? null, c.nickname ?? null, c.level ?? 1,
-        c.gender ?? null, c.nature ?? null, c.ability ?? null, c.held_item ?? null,
         c.status ?? 'alive', c.notes ?? null, c.caught_at, c.died_at ?? null, c.died_route ?? null
       )
     }

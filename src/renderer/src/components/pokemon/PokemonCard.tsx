@@ -65,7 +65,6 @@ export function PokemonCard({ catch_, playerColor, compact, onClick, className }
         )}
         <div className="flex items-center gap-2 mt-1">
           <span className="text-xs text-text-secondary">Lv. {levelCap ?? 5}</span>
-          {catch_.nature && <span className="text-xs text-text-muted">{catch_.nature}</span>}
         </div>
         {catch_.pokemon_id && !compact && <PokemonTypeDisplay pokemonId={catch_.pokemon_id} />}
       </div>

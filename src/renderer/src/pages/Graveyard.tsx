@@ -65,9 +65,6 @@ function DeadPokemonCard({ catch_, player, linkedPartners, levelCap }: {
                   <span className="text-xs text-text-muted">{player.name}</span>
                 </div>
               )}
-              {catch_.nature && (
-                <p className="text-xs text-text-muted mt-0.5">{catch_.nature} nature</p>
-              )}
             </div>
           </div>
 

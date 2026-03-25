@@ -45,10 +45,6 @@ export interface Catch {
   pokemon_name: string | null
   nickname: string | null
   level: number
-  gender: string | null
-  nature: string | null
-  ability: string | null
-  held_item: string | null
   // 'failed' = encounter attempted but Pokémon not caught (or route failed due to partner)
   status: 'alive' | 'dead' | 'failed'
   notes: string | null
@@ -109,10 +105,6 @@ export interface CreateCatchInput {
   pokemon_name?: string
   nickname?: string
   level?: number
-  gender?: string
-  nature?: string
-  ability?: string
-  held_item?: string
   notes?: string
 }
 
