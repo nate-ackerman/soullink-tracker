@@ -130,7 +130,7 @@ function SoulLinkPicker({ open, onClose, runId, onAdded }: SoulLinkPickerProps) 
         return res.json()
       },
       staleTime: Infinity,
-      enabled: id > 0,
+      enabled: open && id > 0,
     })),
   })
 
@@ -1366,177 +1366,7 @@ function SavedPartiesSection({
   )
 }
 
-// ── Type analysis panel ───────────────────────────────────────────────────────
-
-function TypeAnalysisPanel({ partySlots, catches, players, generation }: {
-  partySlots: PartySlot[]
-  catches: Catch[]
-  players: Player[]
-  generation: number
-}) {
-  // Fetch all unique Pokémon IDs across all players in one batch (React Query deduplicates)
-  const allPokemonIds = useMemo(() => [...new Set(
-    partySlots
-      .map((ps) => catches.find((c) => c.id === ps.catch_id)?.pokemon_id ?? 0)
-      .filter((id) => id > 0)
-  )], [partySlots, catches])
-
-  const results = useQueries({
-    queries: allPokemonIds.map((id) => ({
-      queryKey: ['pokemon', id],
-      queryFn: async (): Promise<PokemonData> => {
-        const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${id}`)
-        if (!res.ok) throw new Error(`PokéAPI error: ${res.status}`)
-        return res.json()
-      },
-      staleTime: Infinity,
-      enabled: id > 0,
-    })),
-  })
-
-  const dataMap = useMemo(() => {
-    const map = new Map<number, PokemonData>()
-    allPokemonIds.forEach((id, i) => {
-      const data = results[i]?.data
-      if (data) map.set(id, data)
-    })
-    return map
-  }, [results, allPokemonIds])
-
-  const allLoaded = allPokemonIds.length === 0 || allPokemonIds.every((id) => dataMap.has(id))
-
-  const attackTypes = useMemo(() => getTypesForGeneration(generation), [generation])
-
-  // Compute analysis for one player's set of party slots
-  function analyseSlots(slots: PartySlot[]) {
-    const ids = slots
-      .map((ps) => catches.find((c) => c.id === ps.catch_id)?.pokemon_id ?? 0)
-      .filter((id) => id > 0 && dataMap.has(id))
-
-    if (ids.length === 0) return null
-
-    const teamMatchups = ids.map((id) =>
-      getTypeMatchups(getPokemonTypes(dataMap.get(id)!, generation), generation)
-    )
-
-    const unResisted: string[] = []
-    const weaknesses: [string, number][] = []
-    const resistances: [string, number][] = []
-
-    for (const atkType of attackTypes) {
-      let weak = 0, res = 0
-      for (const matchup of teamMatchups) {
-        const m = matchup[atkType] ?? 1
-        if (m > 1) weak++
-        else if (m < 1) res++
-      }
-      // Un-resisted: no team member resists this type at all
-      if (res === 0) unResisted.push(atkType)
-      // Net: weaknesses minus resistances; positive = net weak, negative = net resist
-      const net = weak - res
-      if (net > 0) weaknesses.push([atkType, net])
-      else if (net < 0) resistances.push([atkType, -net])
-    }
-
-    weaknesses.sort((a, b) => b[1] - a[1])
-    resistances.sort((a, b) => b[1] - a[1])
-
-    const recommendations = attackTypes
-      .map((type) => {
-        const matchup = getTypeMatchups([type], generation)
-        const covered = unResisted.filter((t) => (matchup[t] ?? 1) < 1).length
-        return { type, covered }
-      })
-      .filter((x) => x.covered > 0)
-      .sort((a, b) => b.covered - a.covered)
-      .map((x) => x.type)
-
-    const [, ratingLabel, ratingClass] = RATING_THRESHOLDS.find(([max]) => weaknesses.length <= max)!
-
-    return { weaknesses, resistances, unResisted, recommendations, ratingLabel, ratingClass }
-  }
-
-  if (partySlots.length === 0) {
-    return <p className="text-sm text-text-muted text-center py-8">Add soul links to see type coverage.</p>
-  }
-  if (!allLoaded) {
-    return <p className="text-sm text-text-muted text-center py-8">Loading type data…</p>
-  }
-
-  return (
-    <div className="space-y-4">
-      {players.map((player) => {
-        const playerSlots = partySlots.filter((ps) => ps.player_id === player.id)
-        if (playerSlots.length === 0) return null
-        const analysis = analyseSlots(playerSlots)
-        if (!analysis) return null
-        const { weaknesses, resistances, unResisted, recommendations, ratingClass } = analysis
-
-        return (
-          <Card key={player.id}>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: player.color }} />
-                <span style={{ color: player.color }}>{player.name}</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className={`px-3 py-1.5 rounded-lg border text-xs font-semibold text-center ${ratingClass}`}>
-                {weaknesses.length} weakness{weaknesses.length !== 1 ? 'es' : ''}
-              </div>
-
-              <div>
-                <p className="text-[11px] font-medium text-text-muted uppercase tracking-wide mb-1.5">Weaknesses</p>
-                <div className="flex flex-wrap gap-1">
-                  {weaknesses.length === 0
-                    ? <span className="text-xs text-green-400">None!</span>
-                    : weaknesses.map(([type, count]) => (
-                      <div key={type} className="flex items-center gap-0.5">
-                        <TypeBadge type={type} size="sm" />
-                        {count > 1 && <span className="text-[10px] text-text-muted font-medium">×{count}</span>}
-                      </div>
-                    ))}
-                </div>
-              </div>
-
-              <div>
-                <p className="text-[11px] font-medium text-text-muted uppercase tracking-wide mb-1.5">Resistances</p>
-                <div className="flex flex-wrap gap-1">
-                  {resistances.length === 0
-                    ? <span className="text-xs text-text-muted">None</span>
-                    : resistances.map(([type, count]) => (
-                      <div key={type} className="flex items-center gap-0.5">
-                        <TypeBadge type={type} size="sm" />
-                        {count > 1 && <span className="text-[10px] text-text-muted font-medium">×{count}</span>}
-                      </div>
-                    ))}
-                </div>
-              </div>
-
-              <div>
-                <p className="text-[11px] font-medium text-text-muted uppercase tracking-wide mb-1.5">Un-Resisted</p>
-                <div className="flex flex-wrap gap-1">
-                  {unResisted.length === 0
-                    ? <span className="text-xs text-green-400">All covered!</span>
-                    : unResisted.map((type) => <TypeBadge key={type} type={type} size="sm" />)}
-                </div>
-              </div>
-
-              <div>
-                <p className="text-[11px] font-medium text-text-muted uppercase tracking-wide mb-1.5">Recommended Additions</p>
-                <div className="flex flex-wrap gap-1">
-                  {recommendations.length === 0
-                    ? <span className="text-xs text-green-400">Well-covered!</span>
-                    : recommendations.map((type) => <TypeBadge key={type} type={type} size="sm" />)}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )
-      })}
-    </div>
-  )
-}
+// ── Main component ────────────────────────────────────────────────────────────
 
 // ── Main component ────────────────────────────────────────────────────────────
 
@@ -1548,7 +1378,7 @@ const PARTY_TABS = [
 ]
 
 export function PartyTracker() {
-  const { activeRun, players, catches, partySlots, soulLinks, loadRunData, activeRunId, levelCap, battleRecords, savedParties, refreshSavedParties } = useAppStore()
+  const { activeRun, players, catches, partySlots, soulLinks, levelCap, battleRecords, savedParties, refreshSavedParties, refreshParty } = useAppStore()
   const api = useApi()
   const [pickerOpen, setPickerOpen] = useState(false)
   const [saveModalOpen, setSaveModalOpen] = useState(false)
@@ -1559,11 +1389,11 @@ export function PartyTracker() {
 
   async function handleRemove(catchId: string) {
     await api.party.removeSoulLink(activeRun!.id, catchId)
-    if (activeRunId) await loadRunData(activeRunId)
+    await refreshParty()
   }
 
   async function handleAdded() {
-    if (activeRunId) await loadRunData(activeRunId)
+    await refreshParty()
   }
 
   async function handleSaveParty() {
@@ -1596,9 +1426,7 @@ export function PartyTracker() {
 
         {/* ── Party tab ── */}
         <TabContent value="party" className="p-4">
-          <div className="flex gap-4 items-start">
-            {/* Left: party editor */}
-            <div className="flex-1 min-w-0 space-y-4">
+          <div className="space-y-4">
               <div className="flex items-center gap-3 flex-wrap">
                 <Button onClick={() => setPickerOpen(true)} disabled={availableCount === 0} className="bg-accent-teal hover:bg-teal-500 focus:ring-accent-teal text-white">
                   <Plus className="w-4 h-4" /> Add Soul Link
@@ -1674,17 +1502,6 @@ export function PartyTracker() {
                 levelCap={levelCap}
                 onRemove={handleRemove}
               />
-            </div>
-
-            {/* Right: type analysis */}
-            <div className="w-64 shrink-0">
-              <TypeAnalysisPanel
-                partySlots={partySlots}
-                catches={catches}
-                players={players}
-                generation={activeRun.generation}
-              />
-            </div>
           </div>
         </TabContent>
 
