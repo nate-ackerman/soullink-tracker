@@ -91,6 +91,9 @@ function LinkRow({ link, catches, players, routeName, levelCap, onMarkDeath, onR
   async function saveNickname() {
     const trimmed = nickValue.trim()
     await api.soulLinks.update(link.id, { nickname: trimmed || null })
+    for (const c of linkedCatches) {
+      await api.catches.update(c.id, { nickname: trimmed || null })
+    }
     setEditingNick(false)
     onRefresh()
   }

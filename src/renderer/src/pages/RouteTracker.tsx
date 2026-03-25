@@ -693,6 +693,10 @@ export function RouteTracker() {
       for (const c of targets) {
         await api.catches.update(c.id, { nickname: linkNickname || null } as Partial<Catch>)
       }
+      const link = soulLinks.find((sl) => sl.route_id === selectedRoute)
+      if (link) {
+        await api.soulLinks.update(link.id, { nickname: linkNickname || null })
+      }
       await refresh()
     } finally {
       setSavingNick(false)
