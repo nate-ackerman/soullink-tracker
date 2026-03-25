@@ -121,7 +121,7 @@ interface MarkDeathModalProps {
 }
 
 function MarkDeathModal({ activeLinks, prefillRoute, onConfirm, onClose }: MarkDeathModalProps) {
-  const { catches, players } = useAppStore()
+  const { catches, players, levelCap } = useAppStore()
   const [selectedLinkId, setSelectedLinkId] = useState<string>('')
   const [route, setRoute] = useState(prefillRoute ?? '')
   const [saving, setSaving] = useState(false)
