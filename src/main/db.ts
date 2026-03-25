@@ -45,6 +45,12 @@ function runMigrations(): void {
       }
     }
   }
+  // Add collaborative flag to runs
+  try {
+    database.exec('ALTER TABLE runs ADD COLUMN collaborative INTEGER NOT NULL DEFAULT 0')
+  } catch (_) {
+    // Column already exists
+  }
   // Drop old statuses no longer used in catches
   // (no-op: SQLite doesn't support DROP COLUMN before 3.35, just leave boxed/released as dead-equivalent)
 }
@@ -169,16 +175,39 @@ export function dbCreateRun(data: {
   game: string
   generation: number
   ruleset: object
+  collaborative?: boolean
 }) {
   const database = getDb()
   const id = uuidv4()
   const now = new Date().toISOString()
   database
     .prepare(
-      'INSERT INTO runs (id, name, game, generation, status, ruleset, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO runs (id, name, game, generation, status, ruleset, collaborative, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
     )
-    .run(id, data.name, data.game, data.generation, 'active', JSON.stringify(data.ruleset), now, now)
+    .run(id, data.name, data.game, data.generation, 'active', JSON.stringify(data.ruleset), data.collaborative ? 1 : 0, now, now)
   return dbGetRun(id)!
+}
+
+// Creates a minimal local stub for a collaborative run that lives in Supabase.
+// The stub lets the app list the run and know to load data from Supabase.
+export function dbCreateCollaborativeStub(data: {
+  id: string
+  name: string
+  game: string
+  generation: number
+  ruleset: object
+}) {
+  const database = getDb()
+  const now = new Date().toISOString()
+  // Upsert: if this run ID already exists locally, do nothing
+  const existing = database.prepare('SELECT id FROM runs WHERE id = ?').get(data.id)
+  if (existing) return dbGetRun(data.id)!
+  database
+    .prepare(
+      'INSERT INTO runs (id, name, game, generation, status, ruleset, collaborative, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    )
+    .run(data.id, data.name, data.game, data.generation, 'active', JSON.stringify(data.ruleset), 1, now, now)
+  return dbGetRun(data.id)!
 }
 
 export function dbUpdateRun(id: string, data: Partial<{ name: string; game: string; generation: number; status: string; ruleset: object }>) {

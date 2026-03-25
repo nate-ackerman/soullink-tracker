@@ -10,6 +10,7 @@ interface API {
     getAll(): Promise<Run[]>
     get(id: string): Promise<Run | null>
     create(data: CreateRunInput): Promise<Run>
+    createStub(data: { id: string; name: string; game: string; generation: number; ruleset: any }): Promise<Run>
     update(id: string, data: Partial<Run>): Promise<Run>
     delete(id: string): Promise<void>
     exportRun(id: string): Promise<{ success: boolean; data?: any; error?: string }>

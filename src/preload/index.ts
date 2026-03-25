@@ -6,6 +6,7 @@ const api = {
     getAll: () => ipcRenderer.invoke('runs:getAll'),
     get: (id: string) => ipcRenderer.invoke('runs:get', id),
     create: (data: any) => ipcRenderer.invoke('runs:create', data),
+    createStub: (data: any) => ipcRenderer.invoke('runs:createStub', data),
     update: (id: string, data: any) => ipcRenderer.invoke('runs:update', id, data),
     delete: (id: string) => ipcRenderer.invoke('runs:delete', id),
     exportRun: (id: string) => ipcRenderer.invoke('runs:export', id),

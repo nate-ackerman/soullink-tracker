@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Play, Trash2, Calendar, Users, ChevronRight, Gamepad2, Upload, AlertCircle, ToggleLeft, ToggleRight } from 'lucide-react'
+import { Plus, Play, Trash2, Calendar, Users, ChevronRight, Gamepad2, Upload, AlertCircle, ToggleLeft, ToggleRight, Globe, Copy, Check, Link2 } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { Card, CardContent } from '../components/ui/Card'
 import { Modal } from '../components/ui/Modal'
@@ -11,7 +11,8 @@ import { Switch } from '../components/ui/Switch'
 import { Badge } from '../components/ui/Badge'
 import { useAppStore } from '../store/appStore'
 import { GAMES, GAMES_BY_GEN } from '../data/games'
-import type { Run, Ruleset, CreateRunInput } from '../types'
+import type { Run, Ruleset } from '../types'
+import { runIdToJoinCode } from '../lib/supabase'
 
 const PLAYER_COLORS = [
   { value: '#ef4444', label: 'Red' },
@@ -43,6 +44,7 @@ interface WizardData {
 function RunCard({ run, onSelect, onDelete, onToggleStatus }: { run: Run; onSelect: () => void; onDelete: () => void; onToggleStatus: () => void }) {
   const statusVariant: 'success' | 'danger' | 'info' =
     run.status === 'active' ? 'success' : run.status === 'failed' ? 'danger' : 'info'
+  const joinCode = run.collaborative ? runIdToJoinCode(run.id) : null
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -55,6 +57,11 @@ function RunCard({ run, onSelect, onDelete, onToggleStatus }: { run: Run; onSele
             <div className="flex items-center gap-2 mb-1">
               <span className="text-sm font-semibold text-text-primary truncate">{run.name}</span>
               <Badge variant={statusVariant}>{run.status}</Badge>
+              {joinCode && (
+                <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-accent-teal/20 text-accent-teal border border-accent-teal/30 font-mono font-semibold">
+                  <Globe className="w-2.5 h-2.5" /> {joinCode}
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-3 text-xs text-text-muted">
               <span className="flex items-center gap-1">
@@ -96,13 +103,20 @@ function RunCard({ run, onSelect, onDelete, onToggleStatus }: { run: Run; onSele
 
 export function Home() {
   const navigate = useNavigate()
-  const { setActiveRun } = useAppStore()
+  const { setActiveRun, createCollaborativeRun, joinRun } = useAppStore()
   const [runs, setRuns] = useState<Run[]>([])
   const [showWizard, setShowWizard] = useState(false)
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [importing, setImporting] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
+  const [collaborative, setCollaborative] = useState(false)
+  const [createdJoinCode, setCreatedJoinCode] = useState<string | null>(null)
+  const [codeCopied, setCodeCopied] = useState(false)
+  const [showJoinModal, setShowJoinModal] = useState(false)
+  const [joinCode, setJoinCode] = useState('')
+  const [joinLoading, setJoinLoading] = useState(false)
+  const [joinError, setJoinError] = useState<string | null>(null)
   const [wizardData, setWizardData] = useState<WizardData>({
     name: '',
     game: '',
@@ -177,43 +191,67 @@ export function Home() {
     if (!wizardData.name || !wizardData.game) return
     setLoading(true)
     try {
-      const input: CreateRunInput = {
-        name: wizardData.name,
-        game: wizardData.game,
-        generation: GAMES.find((g) => g.id === wizardData.game)?.generation ?? 1,
-        players: wizardData.players.slice(0, wizardData.playerCount),
-        ruleset: { ...wizardData.ruleset, playerCount: wizardData.playerCount }
-      }
-      const run = await window.api.runs.create(input)
+      const generation = GAMES.find((g) => g.id === wizardData.game)?.generation ?? 1
+      const players = wizardData.players.slice(0, wizardData.playerCount)
+      const ruleset = { ...wizardData.ruleset, playerCount: wizardData.playerCount }
 
-      // Create players
-      for (let i = 0; i < input.players.length; i++) {
-        await window.api.players.create({
-          run_id: run.id,
-          name: input.players[i].name,
-          position: i,
-          color: input.players[i].color
-        })
+      let runId: string
+
+      if (collaborative) {
+        runId = await createCollaborativeRun({ name: wizardData.name, game: wizardData.game, generation, ruleset, players })
+        setCreatedJoinCode(runIdToJoinCode(runId))
+      } else {
+        const run = await window.api.runs.create({ name: wizardData.name, game: wizardData.game, generation, ruleset })
+        for (let i = 0; i < players.length; i++) {
+          await window.api.players.create({ run_id: run.id, name: players[i].name, position: i, color: players[i].color })
+        }
+        runId = run.id
       }
 
       setShowWizard(false)
       setStep(1)
+      setCollaborative(false)
       setWizardData({
         name: '', game: '', playerCount: 2,
-        players: [
-          { name: 'Player 1', color: '#ef4444' },
-          { name: 'Player 2', color: '#3b82f6' }
-        ],
+        players: [{ name: 'Player 1', color: '#ef4444' }, { name: 'Player 2', color: '#3b82f6' }],
         ruleset: { ...DEFAULT_RULESET }
       })
       await loadRuns()
-      setActiveRun(run.id)
-      navigate('/dashboard')
+
+      if (!collaborative) {
+        setActiveRun(runId)
+        navigate('/dashboard')
+      }
+      // If collaborative, stay on Home and show the join code modal
     } catch (err) {
       console.error('Failed to create run', err)
     } finally {
       setLoading(false)
     }
+  }
+
+  async function handleJoinRun() {
+    if (!joinCode.trim()) return
+    setJoinLoading(true)
+    setJoinError(null)
+    try {
+      const runId = await joinRun(joinCode)
+      await loadRuns()
+      setShowJoinModal(false)
+      setJoinCode('')
+      setActiveRun(runId)
+      navigate('/dashboard')
+    } catch (err: any) {
+      setJoinError(err.message ?? 'Failed to join run')
+    } finally {
+      setJoinLoading(false)
+    }
+  }
+
+  function copyJoinCode(code: string) {
+    navigator.clipboard.writeText(code)
+    setCodeCopied(true)
+    setTimeout(() => setCodeCopied(false), 2000)
   }
 
   function updatePlayerCount(count: 2 | 3 | 4) {
@@ -244,6 +282,9 @@ export function Home() {
           <div className="flex items-center gap-2">
             <Button variant="secondary" onClick={handleImportRun} loading={importing}>
               <Upload className="w-4 h-4" /> Import
+            </Button>
+            <Button variant="secondary" onClick={() => { setShowJoinModal(true); setJoinError(null); setJoinCode('') }}>
+              <Link2 className="w-4 h-4" /> Join Run
             </Button>
             <Button onClick={() => { setShowWizard(true); setStep(1) }}>
               <Plus className="w-4 h-4" /> New Run
@@ -288,6 +329,57 @@ export function Home() {
           </div>
         )}
       </div>
+
+      {/* Join Run Modal */}
+      <Modal open={showJoinModal} onOpenChange={(o) => { if (!o) setShowJoinModal(false) }} title="Join a Collaborative Run" size="sm">
+        <div className="space-y-4">
+          <p className="text-sm text-text-muted">Enter the 8-character code shared by the run host.</p>
+          <Input
+            label="Join Code"
+            placeholder="e.g. A1B2C3D4"
+            value={joinCode}
+            onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleJoinRun() }}
+            className="font-mono tracking-widest"
+          />
+          {joinError && (
+            <p className="flex items-center gap-1.5 text-xs text-red-400">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {joinError}
+            </p>
+          )}
+          <div className="flex justify-end gap-2 pt-1">
+            <Button variant="secondary" onClick={() => setShowJoinModal(false)}>Cancel</Button>
+            <Button onClick={handleJoinRun} loading={joinLoading} disabled={joinCode.trim().length < 6}>
+              Join Run
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Post-creation join code modal */}
+      <Modal open={!!createdJoinCode} onOpenChange={(o) => { if (!o) { setCreatedJoinCode(null); setCodeCopied(false) } }} title="Run Created!" size="sm">
+        {createdJoinCode && (
+          <div className="space-y-4">
+            <p className="text-sm text-text-muted">Share this code with your co-players so they can join.</p>
+            <div className="flex items-center gap-2 bg-elevated rounded-lg px-4 py-3 border border-border">
+              <span className="font-mono text-2xl font-bold tracking-widest text-accent-teal flex-1 text-center">{createdJoinCode}</span>
+              <button onClick={() => copyJoinCode(createdJoinCode)} className="text-text-muted hover:text-text-primary transition-colors">
+                {codeCopied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+              </button>
+            </div>
+            <p className="text-xs text-text-muted text-center">You can always find this code on the run card and in Settings.</p>
+            <div className="flex justify-end">
+              <Button onClick={() => {
+                const runs2 = runs.find((r) => runIdToJoinCode(r.id) === createdJoinCode)
+                setCreatedJoinCode(null)
+                if (runs2) { setActiveRun(runs2.id); navigate('/dashboard') }
+              }}>
+                Open Run
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* Create Run Wizard */}
       <Modal
@@ -340,6 +432,15 @@ export function Home() {
                     </button>
                   ))}
                 </div>
+              </div>
+              <div className="border-t border-border/50 pt-3">
+                <Switch
+                  id="collaborative"
+                  checked={collaborative}
+                  onCheckedChange={setCollaborative}
+                  label="Collaborative run"
+                  description="Sync this run to the cloud so others can join with a code and see updates in real time."
+                />
               </div>
             </div>
           )}

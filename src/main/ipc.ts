@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import {
-  dbGetAllRuns, dbGetRun, dbCreateRun, dbUpdateRun, dbDeleteRun,
+  dbGetAllRuns, dbGetRun, dbCreateRun, dbUpdateRun, dbDeleteRun, dbCreateCollaborativeStub,
   dbGetPlayersByRun, dbCreatePlayer, dbUpdatePlayer, dbDeletePlayer,
   dbGetCatchesByRun, dbCreateCatch, dbUpdateCatch, dbDeleteCatch, dbKillCatch, dbFailEncounter,
   dbGetSoulLinksByRun, dbCreateSoulLink, dbUpdateSoulLink, dbDeleteSoulLink,
@@ -17,6 +17,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('runs:getAll', () => dbGetAllRuns())
   ipcMain.handle('runs:get', (_e, id: string) => dbGetRun(id))
   ipcMain.handle('runs:create', (_e, data) => dbCreateRun(data))
+  ipcMain.handle('runs:createStub', (_e, data) => dbCreateCollaborativeStub(data))
   ipcMain.handle('runs:update', (_e, id: string, data) => dbUpdateRun(id, data))
   ipcMain.handle('runs:delete', (_e, id: string) => dbDeleteRun(id))
 

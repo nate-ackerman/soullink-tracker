@@ -24,6 +24,7 @@ export interface Run {
   ruleset: Ruleset
   created_at: string
   updated_at: string
+  collaborative?: boolean
   players?: Player[]
 }
 
