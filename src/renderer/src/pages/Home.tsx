@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Play, Trash2, Calendar, Users, ChevronRight, Gamepad2, Upload, AlertCircle, ToggleLeft, ToggleRight, Globe, Copy, Check, Link2 } from 'lucide-react'
+import { Plus, Play, Trash2, Calendar, Users, ChevronRight, Gamepad2, Upload, AlertCircle, ToggleLeft, ToggleRight, Globe, Copy, Check, Link2, Share2, Loader2 } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { Card, CardContent } from '../components/ui/Card'
 import { Modal } from '../components/ui/Modal'
@@ -41,7 +41,10 @@ interface WizardData {
   ruleset: Ruleset
 }
 
-function RunCard({ run, onSelect, onDelete, onToggleStatus }: { run: Run; onSelect: () => void; onDelete: () => void; onToggleStatus: () => void }) {
+function RunCard({ run, onSelect, onDelete, onToggleStatus, onConvert, converting }: {
+  run: Run; onSelect: () => void; onDelete: () => void; onToggleStatus: () => void
+  onConvert: () => void; converting: boolean
+}) {
   const statusVariant: 'success' | 'danger' | 'info' =
     run.status === 'active' ? 'success' : run.status === 'failed' ? 'danger' : 'info'
   const joinCode = run.collaborative ? runIdToJoinCode(run.id) : null
@@ -82,6 +85,17 @@ function RunCard({ run, onSelect, onDelete, onToggleStatus }: { run: Run; onSele
             <Button variant="ghost" size="sm" onClick={onSelect}>
               <Play className="w-3.5 h-3.5" /> Open
             </Button>
+            {!run.collaborative && (
+              <Button
+                variant="ghost" size="sm"
+                onClick={(e) => { e.stopPropagation(); onConvert() }}
+                disabled={converting}
+                title="Convert to shared run"
+                className="text-text-muted hover:text-accent-teal"
+              >
+                {converting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Share2 className="w-3.5 h-3.5" />}
+              </Button>
+            )}
             <Button
               variant="ghost" size="sm"
               onClick={(e) => { e.stopPropagation(); onToggleStatus() }}
@@ -103,7 +117,7 @@ function RunCard({ run, onSelect, onDelete, onToggleStatus }: { run: Run; onSele
 
 export function Home() {
   const navigate = useNavigate()
-  const { setActiveRun, createCollaborativeRun, joinRun } = useAppStore()
+  const { setActiveRun, createCollaborativeRun, convertToCollaborative, joinRun } = useAppStore()
   const [runs, setRuns] = useState<Run[]>([])
   const [showWizard, setShowWizard] = useState(false)
   const [step, setStep] = useState(1)
@@ -117,6 +131,7 @@ export function Home() {
   const [joinCode, setJoinCode] = useState('')
   const [joinLoading, setJoinLoading] = useState(false)
   const [joinError, setJoinError] = useState<string | null>(null)
+  const [convertingRunId, setConvertingRunId] = useState<string | null>(null)
   const [wizardData, setWizardData] = useState<WizardData>({
     name: '',
     game: '',
@@ -180,6 +195,20 @@ export function Home() {
     const next = run.status === 'active' ? 'failed' : 'active'
     await window.api.runs.update(run.id, { status: next })
     loadRuns()
+  }
+
+  async function handleConvertRun(run: Run) {
+    if (!confirm(`Convert "${run.name}" to a shared run? All data will be uploaded to the cloud and synced in real time. This cannot be undone.`)) return
+    setConvertingRunId(run.id)
+    try {
+      const code = await convertToCollaborative(run.id)
+      await loadRuns()
+      setCreatedJoinCode(code)
+    } catch (err: any) {
+      alert(err.message ?? 'Failed to convert run')
+    } finally {
+      setConvertingRunId(null)
+    }
   }
 
   async function handleSelectRun(run: Run) {
@@ -323,6 +352,8 @@ export function Home() {
                   onSelect={() => handleSelectRun(run)}
                   onDelete={() => handleDeleteRun(run.id)}
                   onToggleStatus={() => handleToggleRunStatus(run)}
+                  onConvert={() => handleConvertRun(run)}
+                  converting={convertingRunId === run.id}
                 />
               ))}
             </AnimatePresence>

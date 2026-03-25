@@ -210,7 +210,7 @@ export function dbCreateCollaborativeStub(data: {
   return dbGetRun(data.id)!
 }
 
-export function dbUpdateRun(id: string, data: Partial<{ name: string; game: string; generation: number; status: string; ruleset: object }>) {
+export function dbUpdateRun(id: string, data: Partial<{ name: string; game: string; generation: number; status: string; ruleset: object; collaborative: boolean }>) {
   const database = getDb()
   const now = new Date().toISOString()
   const fields: string[] = []
@@ -220,6 +220,7 @@ export function dbUpdateRun(id: string, data: Partial<{ name: string; game: stri
   if (data.generation !== undefined) { fields.push('generation = ?'); values.push(data.generation) }
   if (data.status !== undefined) { fields.push('status = ?'); values.push(data.status) }
   if (data.ruleset !== undefined) { fields.push('ruleset = ?'); values.push(JSON.stringify(data.ruleset)) }
+  if (data.collaborative !== undefined) { fields.push('collaborative = ?'); values.push(data.collaborative ? 1 : 0) }
   fields.push('updated_at = ?')
   values.push(now)
   values.push(id)

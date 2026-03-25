@@ -47,6 +47,7 @@ interface AppState {
 
   // Collaborative
   createCollaborativeRun(input: { name: string; game: string; generation: number; ruleset: any; players: { name: string; color: string }[] }): Promise<string>
+  convertToCollaborative(runId: string): Promise<string>
   joinRun(code: string): Promise<string>
   getJoinCode(): string | null
 
@@ -224,6 +225,58 @@ export const useAppStore = create<AppState>((set, get) => ({
     // Create local stub so the run appears on the Home page
     await window.api.runs.createStub({ id: runId, name, game, generation, ruleset })
     return runId
+  },
+
+  convertToCollaborative: async (runId: string) => {
+    // Read all local data
+    const run = await window.api.runs.get(runId)
+    if (!run) throw new Error('Run not found')
+    const [players, catches, soulLinks, notes, battleRecords, savedParties] = await Promise.all([
+      window.api.players.getByRun(runId),
+      window.api.catches.getByRun(runId),
+      window.api.soulLinks.getByRun(runId),
+      window.api.notes.getByRun(runId),
+      window.api.battles.getByRun(runId),
+      window.api.savedParties.getByRun(runId),
+    ])
+    const partySlotArrays = await Promise.all(players.map((p) => window.api.party.getByPlayer(runId, p.id)))
+    const partySlots = partySlotArrays.flat()
+
+    // Upload to Supabase in dependency order
+    await supabase.from('runs').upsert({
+      id: run.id, name: run.name, game: run.game, generation: run.generation,
+      status: run.status, ruleset: run.ruleset, created_at: run.created_at, updated_at: new Date().toISOString()
+    })
+    for (const p of players) {
+      await supabase.from('players').upsert({ id: p.id, run_id: p.run_id, name: p.name, position: p.position, color: p.color })
+    }
+    for (const c of catches) {
+      await supabase.from('catches').upsert(c)
+    }
+    for (const sl of soulLinks) {
+      await supabase.from('soul_links').upsert({
+        id: sl.id, run_id: sl.run_id, route_id: sl.route_id,
+        catch_ids: sl.catch_ids, status: sl.status, nickname: sl.nickname ?? null
+      })
+    }
+    for (const ps of partySlots) {
+      await supabase.from('party_slots').upsert(ps)
+    }
+    for (const n of notes) {
+      await supabase.from('notes').upsert(n)
+    }
+    for (const b of battleRecords) {
+      await supabase.from('battle_records').upsert(b)
+    }
+    for (const sp of savedParties) {
+      await supabase.from('saved_parties').upsert(sp)
+    }
+
+    // Mark local run as collaborative and reload
+    await window.api.runs.update(runId, { collaborative: true } as any)
+    await get().loadRunData(runId)
+
+    return runIdToJoinCode(runId)
   },
 
   joinRun: async (code: string) => {
