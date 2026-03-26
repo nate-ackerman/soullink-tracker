@@ -1,3 +1,15 @@
+/**
+ * ipc.ts — Electron IPC handler registration (main process)
+ *
+ * Each handler maps a channel name (e.g. 'catches:kill') to the corresponding
+ * db.ts function. The preload script (src/preload/index.ts) exposes these
+ * channels to the renderer via window.api, keeping the renderer isolated from
+ * Node.js APIs.
+ *
+ * For collaborative runs, the renderer bypasses IPC entirely and calls
+ * supabaseApi directly (see src/renderer/src/lib/useApi.ts).
+ */
+
 import { ipcMain } from 'electron'
 import {
   dbGetAllRuns, dbGetRun, dbCreateRun, dbUpdateRun, dbDeleteRun, dbCreateCollaborativeStub,

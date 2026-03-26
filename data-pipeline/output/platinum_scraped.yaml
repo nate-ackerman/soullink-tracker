@@ -1,0 +1,1227 @@
+game: platinum
+name: Pokémon Platinum
+gen: 4
+region: sinnoh
+starters:
+- Turtwig
+- Chimchar
+- Piplup
+checkpoints:
+- id: gym_1_oreburgh_gym
+  name: Oreburgh Gym
+  type: gym
+  gym_leader: null
+  badge: null
+  level_cap: null
+  _scrape_confidence: high
+  _source_url: https://bulbapedia.bulbagarden.net/wiki/Walkthrough:Pok%C3%A9mon_Platinum/Part_3
+  locations:
+  - id: starting_the_game
+    name: Starting the game
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: low
+  - id: twinleaf_town
+    name: Twinleaf Town
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_201
+    name: Route 201
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: twinleaf_town
+    name: Twinleaf Town
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_201
+    name: Route 201
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: lake_verity_first_visit
+    name: Lake Verity (first visit)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_201
+    name: Route 201
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: verity_lakefront_optional
+    name: Verity Lakefront (optional)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: low
+  - id: sandgem_town
+    name: Sandgem Town
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: twinleaf_town
+    name: Twinleaf Town
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_202
+    name: Route 202
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: jubilife_city
+    name: Jubilife City
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_203
+    name: Route 203
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: oreburgh_gate
+    name: Oreburgh Gate
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: low
+  - id: oreburgh_city
+    name: Oreburgh City
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: oreburgh_mine
+    name: Oreburgh Mine
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+- id: gym_2_eterna_gym
+  name: Eterna Gym
+  type: gym
+  gym_leader: null
+  badge: null
+  level_cap: null
+  _scrape_confidence: high
+  _source_url: https://bulbapedia.bulbagarden.net/wiki/Walkthrough:Pok%C3%A9mon_Platinum/Part_4
+  locations:
+  - id: oreburgh_gate_optional
+    name: Oreburgh Gate (optional)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: low
+  - id: jubilife_city
+    name: Jubilife City
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_204_south_south
+    name: Route 204 (south) (South)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: ravaged_path
+    name: Ravaged Path
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_204_north_north
+    name: Route 204 (north) (North)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: floaroma_town
+    name: Floaroma Town
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: floaroma_meadow
+    name: Floaroma Meadow
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: valley_windworks
+    name: Valley Windworks
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_205_south_south
+    name: Route 205 (south) (South)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: eterna_forest
+    name: Eterna Forest
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_205_east_east
+    name: Route 205 (east) (East)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: eterna_city
+    name: Eterna City
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+- id: gym_3_hearthome_gym
+  name: Hearthome Gym
+  type: gym
+  gym_leader: null
+  badge: null
+  level_cap: null
+  _scrape_confidence: high
+  _source_url: https://bulbapedia.bulbagarden.net/wiki/Walkthrough:Pok%C3%A9mon_Platinum/Part_6
+  locations:
+  - id: eterna_city
+    name: Eterna City
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: eterna_city
+    name: Eterna City
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: now_that_you_can_use_cut_and_the_bicycle_optional
+    name: Now that you can use Cut and the Bicycle (optional)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: low
+  - id: route_204_north_north
+    name: Route 204 (north) (North)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: eterna_forest
+    name: Eterna Forest
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: eterna_city
+    name: Eterna City
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: old_chateau
+    name: Old Chateau
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: low
+  - id: route_206_optional
+    name: Route 206 (optional)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: wayward_cave_optional
+    name: Wayward Cave (optional)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_207
+    name: Route 207
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: mt_coronet_south_south
+    name: Mt. Coronet (south) (South)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: low
+  - id: route_208
+    name: Route 208
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: hearthome_city
+    name: Hearthome City
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+- id: gym_4_veilstone_gym
+  name: Veilstone Gym
+  type: gym
+  gym_leader: null
+  badge: null
+  level_cap: null
+  _scrape_confidence: high
+  _source_url: https://bulbapedia.bulbagarden.net/wiki/Walkthrough:Pok%C3%A9mon_Platinum/Part_8
+  locations:
+  - id: route_209
+    name: Route 209
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: solaceon_town
+    name: Solaceon Town
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: solaceon_ruins
+    name: Solaceon Ruins
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: lost_tower_optional
+    name: Lost Tower (optional)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_210_south_south
+    name: Route 210 (south) (South)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_215
+    name: Route 215
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: veilstone_city
+    name: Veilstone City
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+- id: gym_5_pastoria_gym
+  name: Pastoria Gym
+  type: gym
+  gym_leader: null
+  badge: null
+  level_cap: null
+  _scrape_confidence: high
+  _source_url: https://bulbapedia.bulbagarden.net/wiki/Walkthrough:Pok%C3%A9mon_Platinum/Part_10
+  locations:
+  - id: veilstone_city
+    name: Veilstone City
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_214
+    name: Route 214
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: maniac_tunnel_optional
+    name: Maniac Tunnel (optional)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: solaceon_town_optional
+    name: Solaceon Town (optional)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: valor_lakefront
+    name: Valor Lakefront
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: low
+  - id: route_213
+    name: Route 213
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: pastoria_city
+    name: Pastoria City
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+- id: gym_6_canalave_gym
+  name: Canalave Gym
+  type: gym
+  gym_leader: null
+  badge: null
+  level_cap: null
+  _scrape_confidence: high
+  _source_url: https://bulbapedia.bulbagarden.net/wiki/Walkthrough:Pok%C3%A9mon_Platinum/Part_13
+  locations:
+  - id: route_212_south_optional_south
+    name: Route 212 (south, optional) (South)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_210
+    name: Route 210
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: celestic_town
+    name: Celestic Town
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: now_that_you_can_use_surf_optional
+    name: Now that you can use Surf (optional)
+    type: surf
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: low
+  - id: twinleaf_town
+    name: Twinleaf Town
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_204
+    name: Route 204
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: ravaged_path
+    name: Ravaged Path
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: valley_windworks
+    name: Valley Windworks
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: eterna_city
+    name: Eterna City
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_208
+    name: Route 208
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_209
+    name: Route 209
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_214
+    name: Route 214
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: pastoria_city
+    name: Pastoria City
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_212_northern_area
+    name: Route 212 (Northern area)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_212_southern_area
+    name: Route 212 (Southern area)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: fuego_ironworks_optional
+    name: Fuego Ironworks (optional)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: low
+  - id: floaroma_meadow_optional
+    name: Floaroma Meadow (optional)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_213_optional
+    name: Route 213 (optional)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_219_optional
+    name: Route 219 (optional)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_220_optional
+    name: Route 220 (optional)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_221_optional
+    name: Route 221 (optional)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_218
+    name: Route 218
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: canalave_city
+    name: Canalave City
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: iron_island
+    name: Iron Island
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+- id: gym_7_snowpoint_gym
+  name: Snowpoint Gym
+  type: gym
+  gym_leader: null
+  badge: null
+  level_cap: null
+  _scrape_confidence: high
+  _source_url: https://bulbapedia.bulbagarden.net/wiki/Walkthrough:Pok%C3%A9mon_Platinum/Part_15
+  locations:
+  - id: canalave_city
+    name: Canalave City
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: oreburgh_gate_optional
+    name: Oreburgh Gate (optional)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: low
+  - id: lake_valor
+    name: Lake Valor
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: lake_verity
+    name: Lake Verity
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_211
+    name: Route 211
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: mt_coronet_north_north
+    name: Mt. Coronet (north) (North)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: low
+  - id: route_216
+    name: Route 216
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_217
+    name: Route 217
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: acuity_lakefront
+    name: Acuity Lakefront
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: low
+  - id: snowpoint_city
+    name: Snowpoint City
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+- id: boss_1_catching_giratina
+  name: Catching Giratina
+  type: boss
+  gym_leader: null
+  badge: null
+  level_cap: null
+  _scrape_confidence: high
+  _source_url: https://bulbapedia.bulbagarden.net/wiki/Walkthrough:Pok%C3%A9mon_Platinum/Part_17
+  locations:
+  - id: now_that_you_can_use_rock_climb_optional
+    name: Now that you can use Rock Climb (optional)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: low
+  - id: route_208
+    name: Route 208
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: veilstone_city
+    name: Veilstone City
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_213
+    name: Route 213
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_210_north_north
+    name: Route 210 (North) (North)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_211_east_east
+    name: Route 211 (East) (East)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_216
+    name: Route 216
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: acuity_lakefront
+    name: Acuity Lakefront
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: low
+  - id: lake_acuity
+    name: Lake Acuity
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: veilstone_city
+    name: Veilstone City
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: mt_coronet_south_south
+    name: Mt. Coronet (south) (South)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: low
+  - id: lower_summit_lower
+    name: Lower summit (Lower)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: upper_summit_upper
+    name: Upper summit (Upper)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: tunnel
+    name: Tunnel
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: summit
+    name: Summit
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: spear_pillar
+    name: Spear Pillar
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: low
+  - id: distortion_world
+    name: Distortion World
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: low
+- id: gym_8_sunyshore_gym
+  name: Sunyshore Gym
+  type: gym
+  gym_leader: null
+  badge: null
+  level_cap: null
+  _scrape_confidence: high
+  _source_url: https://bulbapedia.bulbagarden.net/wiki/Walkthrough:Pok%C3%A9mon_Platinum/Part_19
+  locations:
+  - id: sendoff_spring
+    name: Sendoff Spring
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: low
+  - id: sandgem_town
+    name: Sandgem Town
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: mt_coronet_optional
+    name: Mt. Coronet (optional)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: low
+  - id: catching_the_lake_guardians
+    name: Catching the Lake Guardians
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: lake_verity
+    name: Lake Verity
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: lake_valor
+    name: Lake Valor
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: lake_acuity
+    name: Lake Acuity
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_222
+    name: Route 222
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: sunyshore_city
+    name: Sunyshore City
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+- id: boss_2_victory_road
+  name: Victory Road
+  type: boss
+  gym_leader: null
+  badge: null
+  level_cap: null
+  _scrape_confidence: high
+  _source_url: https://bulbapedia.bulbagarden.net/wiki/Walkthrough:Pok%C3%A9mon_Platinum/Part_19
+  locations:
+  - id: now_that_you_can_use_waterfall_optional
+    name: Now that you can use Waterfall (optional)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: low
+  - id: route_208
+    name: Route 208
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_210
+    name: Route 210
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_223
+    name: Route 223
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: pok_mon_league_south_south
+    name: Pokémon League (south) (South)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: low
+- id: elite4_1_elite_four
+  name: Elite Four
+  type: elite4
+  gym_leader: null
+  badge: null
+  level_cap: null
+  _scrape_confidence: high
+  _source_url: https://bulbapedia.bulbagarden.net/wiki/Walkthrough:Pok%C3%A9mon_Platinum/Part_20
+  locations:
+  - id: pok_mon_league_north_north
+    name: Pokémon League (north) (North)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: low
+- id: elite4_2_aaron
+  name: Aaron
+  type: elite4
+  gym_leader: null
+  badge: null
+  level_cap: null
+  _scrape_confidence: high
+  _source_url: https://bulbapedia.bulbagarden.net/wiki/Walkthrough:Pok%C3%A9mon_Platinum/Part_20
+  locations: []
+- id: elite4_3_bertha
+  name: Bertha
+  type: elite4
+  gym_leader: null
+  badge: null
+  level_cap: null
+  _scrape_confidence: high
+  _source_url: https://bulbapedia.bulbagarden.net/wiki/Walkthrough:Pok%C3%A9mon_Platinum/Part_20
+  locations: []
+- id: elite4_4_flint
+  name: Flint
+  type: elite4
+  gym_leader: null
+  badge: null
+  level_cap: null
+  _scrape_confidence: high
+  _source_url: https://bulbapedia.bulbagarden.net/wiki/Walkthrough:Pok%C3%A9mon_Platinum/Part_20
+  locations: []
+- id: elite4_5_lucian
+  name: Lucian
+  type: elite4
+  gym_leader: null
+  badge: null
+  level_cap: null
+  _scrape_confidence: high
+  _source_url: https://bulbapedia.bulbagarden.net/wiki/Walkthrough:Pok%C3%A9mon_Platinum/Part_20
+  locations: []
+- id: champion_1_champion_cynthia
+  name: Champion Cynthia
+  type: champion
+  gym_leader: null
+  badge: null
+  level_cap: null
+  _scrape_confidence: high
+  _source_url: https://bulbapedia.bulbagarden.net/wiki/Walkthrough:Pok%C3%A9mon_Platinum/Part_20
+  locations: []
+- id: boss_3_great_marsh
+  name: Great Marsh
+  type: boss
+  gym_leader: null
+  badge: null
+  level_cap: null
+  _scrape_confidence: high
+  _source_url: https://bulbapedia.bulbagarden.net/wiki/Walkthrough:Pok%C3%A9mon_Platinum/Part_21
+  locations:
+  - id: twinleaf_town
+    name: Twinleaf Town
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: sandgem_town
+    name: Sandgem Town
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: dongle_method
+    name: Dongle method
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: low
+- id: boss_4_victory_road
+  name: Victory Road
+  type: boss
+  gym_leader: null
+  badge: null
+  level_cap: null
+  _scrape_confidence: high
+  _source_url: https://bulbapedia.bulbagarden.net/wiki/Walkthrough:Pok%C3%A9mon_Platinum/Part_23
+  locations:
+  - id: trophy_garden
+    name: Trophy Garden
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: pal_park
+    name: Pal Park
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: eterna_city
+    name: Eterna City
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: canalave_city
+    name: Canalave City
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: fullmoon_island
+    name: Fullmoon Island
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: snowpoint_temple
+    name: Snowpoint Temple
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: low
+  - id: mt_coronet_south_south
+    name: Mt. Coronet (south) (South)
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: low
+  - id: celestic_town
+    name: Celestic Town
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: spear_pillar
+    name: Spear Pillar
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: low
+  - id: turnback_cave
+    name: Turnback Cave
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: distortion_world
+    name: Distortion World
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: low
+- id: postgame
+  name: Post-Game
+  type: postgame
+  gym_leader: null
+  badge: null
+  level_cap: null
+  _scrape_confidence: low
+  _source_url: ''
+  locations:
+  - id: route_224
+    name: Route 224
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: snowpoint_city
+    name: Snowpoint City
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: fight_area
+    name: Fight Area
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: low
+  - id: route_225
+    name: Route 225
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: survival_area
+    name: Survival Area
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: low
+  - id: route_226
+    name: Route 226
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_227
+    name: Route 227
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: stark_mountain
+    name: Stark Mountain
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: survival_area
+    name: Survival Area
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: low
+  - id: stark_mountain
+    name: Stark Mountain
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_228
+    name: Route 228
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: route_229
+    name: Route 229
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+  - id: resort_area
+    name: Resort Area
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: low
+  - id: route_230
+    name: Route 230
+    type: grass
+    access_notes: null
+    pokeapi_location_area: null
+    encounters: []
+    _scrape_confidence: high
+_scrape_stats:
+  total_sections: 26
+  total_checkpoints: 19
+  total_locations: 149

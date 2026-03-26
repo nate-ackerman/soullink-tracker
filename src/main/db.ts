@@ -1,3 +1,23 @@
+/**
+ * db.ts — SQLite database layer (main process only)
+ *
+ * All data for local (non-collaborative) runs lives here. Collaborative runs
+ * keep their data in Supabase; only a lightweight stub row is stored locally
+ * so the run appears in the Home page list.
+ *
+ * Architecture:
+ *   - getDb() is the single entry point; it initialises the schema on first call.
+ *   - initializeSchema() creates tables with CREATE TABLE IF NOT EXISTS, so it is
+ *     safe to call on both fresh installs and existing databases.
+ *   - runMigrations() applies incremental ALTER TABLE changes that can't be in
+ *     the initial schema (SQLite doesn't allow adding columns with constraints in
+ *     CREATE TABLE IF NOT EXISTS once the table already exists).
+ *   - All JSON columns (ruleset, catch_ids, party_snapshot) are stored as TEXT and
+ *     are always parsed before being returned to callers.
+ *   - Foreign key cascade deletes are enabled, so deleting a run removes all
+ *     players, catches, soul links, party slots, notes, battles, and saved parties.
+ */
+
 import Database from 'better-sqlite3'
 import { app } from 'electron'
 import path from 'path'
@@ -5,12 +25,13 @@ import { v4 as uuidv4 } from 'uuid'
 
 let db: Database.Database
 
+/** Returns the singleton database connection, initialising it on first call. */
 export function getDb(): Database.Database {
   if (!db) {
     const dbPath = path.join(app.getPath('userData'), 'soullink.db')
     db = new Database(dbPath)
-    db.pragma('journal_mode = WAL')
-    db.pragma('foreign_keys = ON')
+    db.pragma('journal_mode = WAL')   // Write-Ahead Logging for better concurrent read performance
+    db.pragma('foreign_keys = ON')    // Enforce FK constraints (cascade deletes)
     initializeSchema()
     runMigrations()
   }
@@ -87,10 +108,18 @@ function initializeSchema(): void {
       pokemon_name TEXT,
       nickname TEXT,
       level INTEGER DEFAULT 1,
+      -- Legacy columns: gender, nature, ability, held_item were part of the original
+      -- schema but are no longer displayed or populated by the application. They are
+      -- retained here so that existing databases are not broken by the CREATE TABLE
+      -- IF NOT EXISTS guard (which would not add them to a new install, but dropping
+      -- them from an existing DB requires table recreation). No application code reads
+      -- or writes these columns.
       gender TEXT,
       nature TEXT,
       ability TEXT,
       held_item TEXT,
+      -- status flow: 'alive' → 'dead' (on kill) or 'failed' (on encounter failure)
+      -- 'boxed' was a legacy status; no new rows are created with it.
       status TEXT DEFAULT 'alive',
       notes TEXT,
       caught_at TEXT NOT NULL,

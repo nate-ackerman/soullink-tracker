@@ -32,7 +32,6 @@ function PokemonTypeDisplay({ pokemonId }: { pokemonId: number }) {
 export function PokemonCard({ catch_, playerColor, compact, onClick, className }: PokemonCardProps) {
   const { levelCap } = useAppStore()
   const isDead = catch_.status === 'dead'
-  const isBoxed = catch_.status === 'boxed'
 
   return (
     <div
@@ -51,7 +50,7 @@ export function PokemonCard({ catch_, playerColor, compact, onClick, className }
         pokemonName={catch_.pokemon_name}
         levelCap={levelCap}
         size={compact ? 40 : 52}
-        grayscale={isDead || isBoxed}
+        grayscale={isDead}
       />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">

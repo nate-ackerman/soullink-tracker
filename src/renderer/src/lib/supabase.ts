@@ -1,5 +1,29 @@
+/**
+ * supabase.ts — Supabase client and collaborative-run API layer
+ *
+ * This file has two responsibilities:
+ *
+ * 1. SUPABASE CLIENT — exports `supabase` for direct Postgres queries and
+ *    Realtime subscriptions used in appStore.ts.
+ *
+ * 2. SUPABASE API (`supabaseApi`) — a mirror of the `window.api` interface
+ *    (defined in src/preload/index.ts) that routes all mutations to Supabase
+ *    instead of local SQLite. The `useApi()` hook in src/renderer/src/lib/useApi.ts
+ *    returns either `window.api` or `supabaseApi` based on `activeRun.collaborative`.
+ *
+ * Complex operations (kill, failEncounter, addSoulLink, removeSoulLink) are
+ * implemented as private `_*` helpers because they involve multiple table
+ * mutations that must stay in sync — the same logic that lives in db.ts for
+ * local runs.
+ *
+ * Join code format: first 8 hex characters of the run UUID, uppercase.
+ * Matching uses ilike so it's case-insensitive on lookup.
+ */
+
 import { createClient } from '@supabase/supabase-js'
 
+// Anon key is intentionally public — Supabase RLS policies enforce row-level
+// access. This key has no admin privileges.
 const SUPABASE_URL = 'https://vyodmscaavjvabkzykvu.supabase.co'
 const SUPABASE_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ5b2Rtc2NhYXZqdmFia3p5a3Z1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzOTQ0MDAsImV4cCI6MjA4OTk3MDQwMH0.aj2LIzoVIzm4NOD-MfvftVQyk3kEiUd-45qp0oftmSY'
@@ -138,7 +162,6 @@ export const supabaseApi = {
     },
     update: async (id: string, updates: any) => {
       const payload: any = { ...updates, updated_at: new Date().toISOString() }
-      if (payload.ruleset && typeof payload.ruleset === 'object') payload.ruleset = payload.ruleset
       await supabase.from('runs').update(payload).eq('id', id)
     },
   },

@@ -1,9 +1,35 @@
+/**
+ * appStore.ts — Global Zustand store for all active-run state
+ *
+ * Single source of truth for the currently open run. All pages read from this
+ * store rather than fetching data independently.
+ *
+ * API routing:
+ *   Local runs   → window.api (IPC → SQLite via src/main/db.ts)
+ *   Collaborative → supabaseApi (direct Supabase REST calls)
+ *
+ * The distinction is made at two levels:
+ *   - loadRunData / refresh* actions — check activeRun.collaborative and pick
+ *     the right API before fetching.
+ *   - Page-level mutations (create catch, kill, etc.) — go through the useApi()
+ *     hook (src/renderer/src/lib/useApi.ts) which returns the correct API object.
+ *
+ * Realtime:
+ *   When a collaborative run is loaded, a Supabase Realtime channel is opened
+ *   that listens for Postgres changes on the run's tables. Each change triggers
+ *   the corresponding refresh* action so all connected clients stay in sync.
+ *   The channel is torn down on run switch or close via _unsubscribe().
+ *
+ * Granular refresh actions (refreshCatches, refreshParty, etc.) exist so that
+ * mutations can re-fetch only what changed rather than reloading the entire run.
+ */
+
 import { create } from 'zustand'
 import type { Run, Player, Catch, SoulLink, PartySlot, Note, BattleRecord, SavedParty } from '../types'
 import { supabase, supabaseApi, runIdToJoinCode, findRunByJoinCode } from '../lib/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
-// Module-level channel reference (not in store state — avoids re-render on subscribe/unsubscribe)
+// Kept outside the store to avoid triggering re-renders on channel state changes
 let _realtimeChannel: RealtimeChannel | null = null
 
 function _unsubscribe() {
