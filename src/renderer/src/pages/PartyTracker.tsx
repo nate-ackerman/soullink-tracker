@@ -84,7 +84,7 @@ interface SoulLinkPickerProps {
   open: boolean
   onClose: () => void
   runId: string
-  onAdded: () => void
+  onAdded: (link: SoulLink) => void
 }
 
 function EvolvedPickerName({ c, levelCap }: { c: Catch; levelCap: number | null }) {
@@ -211,7 +211,7 @@ function SoulLinkPicker({ open, onClose, runId, onAdded }: SoulLinkPickerProps) 
     setLoading(true)
     try {
       await api.party.addSoulLink(runId, link.catch_ids[0])
-      onAdded()
+      onAdded(link)
       onClose()
     } finally {
       setLoading(false)
@@ -639,7 +639,7 @@ function BestCombosSection({
   generation: number
 }) {
   const [applying, setApplying] = useState(false)
-  const { activeRun: _activeRun } = useAppStore()
+  const { activeRun: _activeRun, optimisticAddLink } = useAppStore()
   const api = useApi()
   const guaranteedLevel = _activeRun?.ruleset.guaranteedEvolutionLevel ?? null
 
@@ -1048,9 +1048,9 @@ function BestCombosSection({
   async function applyCombo(additions: SoulLink[]) {
     setApplying(true)
     try {
-      for (const link of additions) {
-        await api.party.addSoulLink(runId, link.catch_ids[0])
-      }
+      // Apply optimistic updates immediately so the UI reflects changes before network calls complete
+      for (const link of additions) optimisticAddLink(link)
+      await Promise.all(additions.map((link) => api.party.addSoulLink(runId, link.catch_ids[0])))
       onAdded()
     } finally {
       setApplying(false)
@@ -1378,7 +1378,7 @@ const PARTY_TABS = [
 ]
 
 export function PartyTracker() {
-  const { activeRun, players, catches, partySlots, soulLinks, levelCap, battleRecords, savedParties, refreshSavedParties, refreshParty } = useAppStore()
+  const { activeRun, players, catches, partySlots, soulLinks, levelCap, battleRecords, savedParties, refreshSavedParties, refreshParty, optimisticAddLink, optimisticRemoveLink, optimisticClearParty } = useAppStore()
   const api = useApi()
   const [pickerOpen, setPickerOpen] = useState(false)
   const [saveModalOpen, setSaveModalOpen] = useState(false)
@@ -1387,13 +1387,13 @@ export function PartyTracker() {
 
   if (!activeRun) return <div className="p-6 text-text-muted">No active run</div>
 
-  async function handleRemove(catchId: string) {
-    await api.party.removeSoulLink(activeRun!.id, catchId)
-    await refreshParty()
+  function handleRemove(catchId: string) {
+    optimisticRemoveLink(catchId)
+    api.party.removeSoulLink(activeRun!.id, catchId).then(() => refreshParty())
   }
 
-  async function handleAdded() {
-    await refreshParty()
+  function handleAdded() {
+    refreshParty()
   }
 
   async function handleSaveParty() {
@@ -1460,11 +1460,9 @@ export function PartyTracker() {
                   ) : (
                     <>
                       <button
-                        onClick={async () => {
-                          for (const player of players) {
-                            await api.party.clearAll(activeRun!.id, player.id)
-                          }
-                          await handleAdded()
+                        onClick={() => {
+                          optimisticClearParty()
+                          Promise.all(players.map((player) => api.party.clearAll(activeRun!.id, player.id))).then(() => refreshParty())
                         }}
                         disabled={partySlots.length === 0}
                         className="text-xs px-2 py-1 rounded border border-border text-text-muted hover:text-red-400 hover:border-red-700/50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
@@ -1562,7 +1560,7 @@ export function PartyTracker() {
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
         runId={activeRun.id}
-        onAdded={handleAdded}
+        onAdded={(link) => { optimisticAddLink(link); refreshParty() }}
       />
     </div>
   )

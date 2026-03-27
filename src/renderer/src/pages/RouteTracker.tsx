@@ -129,6 +129,7 @@ function LogCatchModal({ open, onClose, routeId, player, runId, defaultLevel, on
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(false)
   const api = useApi()
+  const { optimisticAddCatch } = useAppStore()
 
   const { data: resolved } = usePokemonByName(pokemonName)
 
@@ -137,18 +138,23 @@ function LogCatchModal({ open, onClose, routeId, player, runId, defaultLevel, on
     setLoading(true)
     try {
       const resolvedId = resolved?.id ?? pokemonId
-      await api.catches.create({
-        run_id: runId,
-        player_id: player.id,
-        route_id: routeId,
-        pokemon_id: resolvedId,
-        pokemon_name: pokemonName || undefined,
-        level: defaultLevel,
-        notes: notes || undefined
+      // Show the catch immediately; refreshCatches() will reconcile the real server row.
+      optimisticAddCatch({
+        id: `optimistic-${crypto.randomUUID()}`,
+        run_id: runId, player_id: player.id, route_id: routeId,
+        pokemon_id: resolvedId ?? null, pokemon_name: pokemonName,
+        level: defaultLevel, notes: notes || null,
+        status: 'alive', nickname: null, died_route: null, died_at: null,
+        caught_at: new Date().toISOString(),
       })
-      onSaved()
       onClose()
       setPokemonName(''); setPokemonId(undefined); setNotes('')
+      await api.catches.create({
+        run_id: runId, player_id: player.id, route_id: routeId,
+        pokemon_id: resolvedId, pokemon_name: pokemonName || undefined,
+        level: defaultLevel, notes: notes || undefined
+      })
+      onSaved()
     } finally {
       setLoading(false)
     }
@@ -190,6 +196,7 @@ function EditPokemonModal({
   const [loading, setLoading] = useState(false)
   const prevId = useRef<string | undefined>()
   const api = useApi()
+  const { optimisticUpdateCatch } = useAppStore()
   const { data: resolved } = usePokemonByName(pokemonName)
 
   // Reset state when a different catch is opened
@@ -206,12 +213,13 @@ function EditPokemonModal({
     setLoading(true)
     try {
       const resolvedId = resolved?.id ?? pokemonId
+      optimisticUpdateCatch(catch_.id, { pokemon_id: resolvedId ?? null, pokemon_name: pokemonName })
+      onClose()
       await api.catches.update(catch_.id, {
         pokemon_id: resolvedId ?? null,
         pokemon_name: pokemonName,
       } as Partial<Catch>)
       onSaved()
-      onClose()
     } finally {
       setLoading(false)
     }
@@ -534,7 +542,11 @@ function RouteStatusBadge({ status }: { status: RouteStatus }) {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function RouteTracker() {
-  const { activeRun, players, catches, soulLinks, loadRunData, activeRunId, levelCap, battleRecords } = useAppStore()
+  const {
+    activeRun, players, catches, soulLinks, activeRunId, levelCap, battleRecords,
+    refreshRun, refreshCatches, refreshSoulLinks, refreshParty,
+    optimisticAddCatch, optimisticUpdateCatch, optimisticUpdateNickname,
+  } = useAppStore()
   const api = useApi()
   const [selectedRoute, setSelectedRoute] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -659,15 +671,11 @@ export function RouteTracker() {
   const activeLogPlayer = logModal.playerId ? players.find((p) => p.id === logModal.playerId) : null
   const activeFailPlayer = failModal.playerId ? players.find((p) => p.id === failModal.playerId) : null
 
-  async function refresh() {
-    if (activeRunId) await loadRunData(activeRunId)
-  }
-
   async function saveRuleset(updates: Partial<typeof activeRun.ruleset>) {
     await api.runs.update(activeRun.id, {
       ruleset: { ...activeRun.ruleset, ...updates }
     })
-    await refresh()
+    await refreshRun()
   }
 
   async function handleClearRoute() {
@@ -675,10 +683,12 @@ export function RouteTracker() {
     setClearing(true)
     try {
       const routeCatchIds = catches.filter((c) => c.route_id === selectedRoute).map((c) => c.id)
-      for (const id of routeCatchIds) await api.catches.delete(id)
       const link = soulLinks.find((sl) => sl.route_id === selectedRoute)
-      if (link) await api.soulLinks.delete(link.id)
-      await refresh()
+      await Promise.all([
+        ...routeCatchIds.map((id) => api.catches.delete(id)),
+        ...(link ? [api.soulLinks.delete(link.id)] : []),
+      ])
+      await Promise.all([refreshCatches(), refreshSoulLinks()])
     } finally {
       setClearing(false)
       setClearConfirm(false)
@@ -689,15 +699,15 @@ export function RouteTracker() {
     if (!selectedRoute) return
     setSavingNick(true)
     try {
+      const nickname = linkNickname || null
+      optimisticUpdateNickname(selectedRoute, nickname)
       const targets = catches.filter((c) => c.route_id === selectedRoute && c.status !== 'failed')
-      for (const c of targets) {
-        await api.catches.update(c.id, { nickname: linkNickname || null } as Partial<Catch>)
-      }
       const link = soulLinks.find((sl) => sl.route_id === selectedRoute)
-      if (link) {
-        await api.soulLinks.update(link.id, { nickname: linkNickname || null })
-      }
-      await refresh()
+      await Promise.all([
+        ...targets.map((c) => api.catches.update(c.id, { nickname } as Partial<Catch>)),
+        ...(link ? [api.soulLinks.update(link.id, { nickname })] : []),
+      ])
+      await Promise.all([refreshCatches(), refreshSoulLinks()])
     } finally {
       setSavingNick(false)
     }
@@ -983,7 +993,7 @@ export function RouteTracker() {
           player={activeLogPlayer}
           runId={activeRun.id}
           defaultLevel={defaultLevel}
-          onSaved={refresh}
+          onSaved={refreshCatches}
         />
       )}
 
@@ -992,7 +1002,7 @@ export function RouteTracker() {
         onClose={() => setKillModal({ open: false, catch_: null })}
         catch_={killModal.catch_}
         routeId={selectedRoute ?? ''}
-        onKilled={refresh}
+        onKilled={() => Promise.all([refreshCatches(), refreshSoulLinks(), refreshParty()])}
       />
 
       {activeFailPlayer && selectedRoute && (
@@ -1003,7 +1013,7 @@ export function RouteTracker() {
           routeName={selectedRouteName}
           runId={activeRun.id}
           routeId={selectedRoute}
-          onFailed={refresh}
+          onFailed={() => Promise.all([refreshCatches(), refreshSoulLinks(), refreshParty()])}
         />
       )}
 
@@ -1011,7 +1021,7 @@ export function RouteTracker() {
         open={editModal.open}
         onClose={() => setEditModal({ open: false, catch_: null })}
         catch_={editModal.catch_}
-        onSaved={refresh}
+        onSaved={refreshCatches}
       />
 
       <ManageEncountersModal

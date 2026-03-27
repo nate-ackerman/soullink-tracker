@@ -235,7 +235,8 @@ export function RunDashboard() {
   const navigate = useNavigate()
   const {
     activeRun, activeRunId, players, catches, soulLinks, partySlots,
-    loadRunData, levelCap, setLevelCap, battleRecords, refreshBattles
+    loadRunData, levelCap, setLevelCap, battleRecords, refreshBattles,
+    optimisticAddBattle, optimisticUpdateBattle,
   } = useAppStore()
   const api = useApi()
 
@@ -358,6 +359,17 @@ export function RunDashboard() {
         .map((ps) => ({ slot: ps.slot, catch_id: ps.catch_id }))
       return { player_id: player.id, slots }
     })
+    const now = new Date().toISOString()
+    optimisticAddBattle({
+      id: `optimistic-${crypto.randomUUID()}`,
+      run_id: activeRun.id,
+      gym_leader_name: nextGym.name,
+      level_cap: adjustedCap(nextGym.levelCap),
+      party_snapshot: snapshot,
+      outcome: 'pending',
+      created_at: now,
+      completed_at: null,
+    })
     await api.battles.create({
       run_id: activeRun.id,
       gym_leader_name: nextGym.name,
@@ -369,6 +381,7 @@ export function RunDashboard() {
 
   async function handleCompleteBattle() {
     if (!pendingBattle || !activeRunId) return
+    optimisticUpdateBattle(pendingBattle.id, { outcome: 'victory', completed_at: new Date().toISOString() })
     await api.battles.update(pendingBattle.id, { outcome: 'victory' })
     await refreshBattles()
     // Auto-fail the run if every party slot is dead after the battle

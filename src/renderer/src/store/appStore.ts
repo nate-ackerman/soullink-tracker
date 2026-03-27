@@ -61,6 +61,7 @@ interface AppState {
   setActiveRun(runId: string | null): void
   setLevelCap(cap: number | null): void
   loadRunData(runId: string): Promise<void>
+  refreshRun(): Promise<void>
   refreshCatches(): Promise<void>
   refreshSoulLinks(): Promise<void>
   refreshParty(): Promise<void>
@@ -70,6 +71,24 @@ interface AppState {
   setActiveRoute(routeId: string | null): void
   setActivePlayerId(playerId: string | null): void
   setSidebarCollapsed(collapsed: boolean): void
+
+  // Optimistic mutations — update store state immediately without a network call.
+  // The caller is responsible for firing the actual API mutation and reconciling via
+  // the appropriate refresh* action afterwards.
+
+  // Party mutations — mirror the DB logic in db.ts exactly.
+  optimisticAddLink(link: SoulLink): void
+  optimisticRemoveLink(catchId: string): void
+  optimisticClearParty(): void
+
+  // Catch / encounter mutations.
+  optimisticAddCatch(catch_: Catch): void
+  optimisticUpdateCatch(id: string, updates: Partial<Catch>): void
+  optimisticUpdateNickname(routeId: string, nickname: string | null): void
+
+  // Battle record mutations.
+  optimisticAddBattle(battle: BattleRecord): void
+  optimisticUpdateBattle(id: string, updates: Partial<BattleRecord>): void
 
   // Collaborative
   createCollaborativeRun(input: { name: string; game: string; generation: number; ruleset: any; players: { name: string; color: string }[] }): Promise<string>
@@ -157,6 +176,18 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
+  refreshRun: async () => {
+    const { activeRunId, activeRun } = get()
+    if (!activeRunId) return
+    try {
+      const api = activeRun?.collaborative ? supabaseApi : window.api
+      const run = await api.runs.get(activeRunId)
+      set({ activeRun: run })
+    } catch (err) {
+      console.error('Failed to refresh run:', err)
+    }
+  },
+
   refreshCatches: async () => {
     const { activeRunId, activeRun } = get()
     if (!activeRunId) return
@@ -235,6 +266,69 @@ export const useAppStore = create<AppState>((set, get) => ({
   setActivePlayerId: (playerId) => set({ activePlayerId: playerId }),
   setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
   setLevelCap: (cap) => set({ levelCap: cap }),
+
+  // Mirrors dbAddSoulLinkToParty: assigns each alive catch in the link to the
+  // next available slot (0–5) for their player, without touching the backend.
+  optimisticAddLink: (link) => {
+    const { catches, partySlots, activeRun } = get()
+    if (!activeRun) return
+    const newSlots = [...partySlots]
+    for (const catchId of link.catch_ids) {
+      const c = catches.find((x) => x.id === catchId)
+      if (!c || c.status !== 'alive') continue
+      const used = newSlots.filter((ps) => ps.player_id === c.player_id).map((ps) => ps.slot)
+      const nextSlot = [0, 1, 2, 3, 4, 5].find((s) => !used.includes(s))
+      if (nextSlot === undefined) continue
+      newSlots.push({ id: `optimistic-${catchId}`, run_id: activeRun.id, player_id: c.player_id, catch_id: catchId, slot: nextSlot })
+    }
+    set({ partySlots: newSlots })
+  },
+
+  // Mirrors dbRemoveSoulLinkFromParty: removes all members of the link from the
+  // party and compacts each affected player's remaining slots to fill from 0.
+  optimisticRemoveLink: (catchId) => {
+    const { soulLinks, partySlots } = get()
+    const link = soulLinks.find((sl) => sl.catch_ids.includes(catchId))
+    const toRemove = new Set(link ? link.catch_ids : [catchId])
+    const remaining = partySlots.filter((ps) => !toRemove.has(ps.catch_id))
+    // Renumber each affected player's slots starting from 0 with no gaps
+    const affectedPlayers = new Set(partySlots.filter((ps) => toRemove.has(ps.catch_id)).map((ps) => ps.player_id))
+    const compacted = remaining.map((ps) => {
+      if (!affectedPlayers.has(ps.player_id)) return ps
+      const idx = remaining.filter((r) => r.player_id === ps.player_id).sort((a, b) => a.slot - b.slot).indexOf(ps)
+      return { ...ps, slot: idx }
+    })
+    set({ partySlots: compacted })
+  },
+
+  // Immediately empties the party in the store. Caller must still fire clearAll API calls.
+  optimisticClearParty: () => set({ partySlots: [] }),
+
+  // Appends a newly created catch before the server round-trip completes.
+  // Use a temporary id (e.g. `optimistic-<uuid>`); refreshCatches() will replace it with the real row.
+  optimisticAddCatch: (catch_) => set({ catches: [...get().catches, catch_] }),
+
+  // Patches a single catch in the store. Caller reconciles via refreshCatches().
+  optimisticUpdateCatch: (id, updates) =>
+    set({ catches: get().catches.map((c) => (c.id === id ? { ...c, ...updates } : c)) }),
+
+  // Sets nickname on all non-failed catches for a route and on the matching soul link.
+  // Caller reconciles via refreshCatches() + refreshSoulLinks().
+  optimisticUpdateNickname: (routeId, nickname) => {
+    const { catches, soulLinks } = get()
+    set({
+      catches: catches.map((c) => (c.route_id === routeId && c.status !== 'failed' ? { ...c, nickname } : c)),
+      soulLinks: soulLinks.map((sl) => (sl.route_id === routeId ? { ...sl, nickname } : sl)),
+    })
+  },
+
+  // Appends a new battle record before the server round-trip completes.
+  // Use a temporary id; refreshBattles() will replace it with the real row.
+  optimisticAddBattle: (battle) => set({ battleRecords: [...get().battleRecords, battle] }),
+
+  // Patches a battle record in the store. Caller reconciles via refreshBattles().
+  optimisticUpdateBattle: (id, updates) =>
+    set({ battleRecords: get().battleRecords.map((b) => (b.id === id ? { ...b, ...updates } : b)) }),
 
   // ── Collaborative actions ────────────────────────────────────────────────────
 
