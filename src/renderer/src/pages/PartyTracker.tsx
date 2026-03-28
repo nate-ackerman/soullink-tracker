@@ -501,11 +501,8 @@ function PartyLinkTable({ players, partySlots, catches, soulLinks, levelCap, onR
                   <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
                   <span className="text-sm font-semibold truncate" style={{ color: p.color }}>{p.name}</span>
                 </div>
-                {playerBst > 0 && (
-                  <div className="flex flex-col gap-0.5 pl-4">
-                    <span className="text-xs font-semibold text-text-primary leading-none">{playerBst.toLocaleString()}</span>
-                    <span className="text-[10px] text-text-muted leading-none">avg {avgBst.toLocaleString()}</span>
-                  </div>
+                {avgBst > 0 && (
+                  <span className="text-xs font-semibold text-text-primary leading-none pl-4">avg {avgBst.toLocaleString()}</span>
                 )}
               </div>
               {/* One card per soul link */}
