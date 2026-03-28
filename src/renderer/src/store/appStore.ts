@@ -169,6 +169,8 @@ export const useAppStore = create<AppState>((set, get) => ({
             () => get().refreshBattles())
           .on('postgres_changes', { event: '*', schema: 'public', table: 'saved_parties', filter: `run_id=eq.${runId}` },
             () => get().refreshSavedParties())
+          .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'runs', filter: `id=eq.${runId}` },
+            () => get().refreshRun())
           .subscribe()
       }
     } catch (err) {
