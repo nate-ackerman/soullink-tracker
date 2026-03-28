@@ -483,22 +483,29 @@ function PartyLinkTable({ players, partySlots, catches, soulLinks, levelCap, onR
         {/* One row per player */}
         <div className="flex flex-col" style={{ gap: GAP }}>
           {players.map((p) => {
-            const playerBst = partySlots
-              .filter((ps) => catches.find((c) => c.id === ps.catch_id)?.player_id === p.id)
-              .reduce((sum, ps) => {
-                const pokemonId = catches.find((c) => c.id === ps.catch_id)?.pokemon_id
-                return sum + (pokemonId ? (bstById.get(pokemonId) ?? 0) : 0)
-              }, 0)
+            const playerSlots = partySlots.filter((ps) => catches.find((c) => c.id === ps.catch_id)?.player_id === p.id)
+            const playerBst = playerSlots.reduce((sum, ps) => {
+              const pokemonId = catches.find((c) => c.id === ps.catch_id)?.pokemon_id
+              return sum + (pokemonId ? (bstById.get(pokemonId) ?? 0) : 0)
+            }, 0)
+            const bstCount = playerSlots.filter((ps) => {
+              const pokemonId = catches.find((c) => c.id === ps.catch_id)?.pokemon_id
+              return pokemonId && bstById.has(pokemonId)
+            }).length
+            const avgBst = bstCount > 0 ? Math.round(playerBst / bstCount) : 0
             return (
             <div key={p.id} className="flex items-center" style={{ gap: GAP }}>
               {/* Player label */}
-              <div style={{ width: LABEL_W, flexShrink: 0 }} className="flex flex-col gap-0.5 pr-2">
+              <div style={{ width: LABEL_W, flexShrink: 0 }} className="flex flex-col gap-1 pr-2">
                 <div className="flex items-center gap-2">
                   <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
                   <span className="text-sm font-semibold truncate" style={{ color: p.color }}>{p.name}</span>
                 </div>
                 {playerBst > 0 && (
-                  <span className="text-[10px] text-text-muted leading-none pl-4">BST {playerBst.toLocaleString()}</span>
+                  <div className="flex flex-col gap-0.5 pl-4">
+                    <span className="text-xs font-semibold text-text-primary leading-none">{playerBst.toLocaleString()}</span>
+                    <span className="text-[10px] text-text-muted leading-none">avg {avgBst.toLocaleString()}</span>
+                  </div>
                 )}
               </div>
               {/* One card per soul link */}
