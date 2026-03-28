@@ -94,9 +94,8 @@ function EvolvedPickerName({ c, levelCap }: { c: Catch; levelCap: number | null 
 }
 
 function SoulLinkPicker({ open, onClose, runId, onAdded }: SoulLinkPickerProps) {
-  const { soulLinks, catches, players, partySlots, activeRun, levelCap } = useAppStore()
+  const { soulLinks, catches, players, partySlots, activeRun, levelCap, refreshParty } = useAppStore()
   const api = useApi()
-  const [loading, setLoading] = useState(false)
 
   const maxTypeLimit = activeRun?.ruleset.maxSharedTypeCount ?? 0
   const perTeamLimit = activeRun?.ruleset.maxSameTeamTypeCount ?? 0
@@ -208,14 +207,10 @@ function SoulLinkPicker({ open, onClose, runId, onAdded }: SoulLinkPickerProps) 
   }
 
   async function handleSelect(link: SoulLink) {
-    setLoading(true)
-    try {
-      await api.party.addSoulLink(runId, link.catch_ids[0])
-      onAdded(link)
-      onClose()
-    } finally {
-      setLoading(false)
-    }
+    onAdded(link)    // optimistic update fires immediately
+    onClose()        // modal closes immediately
+    await api.party.addSoulLink(runId, link.catch_ids[0])
+    refreshParty()   // reconcile after API completes
   }
 
   return (
@@ -239,7 +234,7 @@ function SoulLinkPicker({ open, onClose, runId, onAdded }: SoulLinkPickerProps) 
               <button
                 key={link.id}
                 onClick={() => !blocked && handleSelect(link)}
-                disabled={loading || blocked}
+                disabled={blocked}
                 title={blocked ? `Exceeds ${maxTypeLimit}-${violation} type limit` : undefined}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded border transition-colors text-left ${
                   blocked
@@ -434,6 +429,36 @@ function PartyLinkTable({ players, partySlots, catches, soulLinks, levelCap, onR
     return minSlot(a) - minSlot(b)
   })
 
+  // Batch-fetch BST for all party pokemon using the shared ['pokemon', id] cache key
+  const partyPokemonIds = useMemo(() => {
+    return [...new Set(
+      partySlots
+        .map((ps) => catches.find((c) => c.id === ps.catch_id)?.pokemon_id)
+        .filter((id): id is number => id != null && id > 0)
+    )]
+  }, [partySlots, catches])
+
+  const bstResults = useQueries({
+    queries: partyPokemonIds.map((id) => ({
+      queryKey: ['pokemon', id],
+      queryFn: async (): Promise<PokemonData> => {
+        const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${id}`)
+        if (!res.ok) throw new Error(`PokéAPI error: ${res.status}`)
+        return res.json()
+      },
+      staleTime: Infinity,
+    })),
+  })
+
+  const bstById = useMemo(() => {
+    const map = new Map<number, number>()
+    partyPokemonIds.forEach((id, i) => {
+      const data = bstResults[i]?.data
+      if (data) map.set(id, data.stats.reduce((s, x) => s + x.base_stat, 0))
+    })
+    return map
+  }, [bstResults, partyPokemonIds])
+
   if (orderedLinks.length === 0) return null
 
   const LABEL_W = 96   // px — player name column
@@ -457,12 +482,24 @@ function PartyLinkTable({ players, partySlots, catches, soulLinks, levelCap, onR
 
         {/* One row per player */}
         <div className="flex flex-col" style={{ gap: GAP }}>
-          {players.map((p) => (
+          {players.map((p) => {
+            const playerBst = partySlots
+              .filter((ps) => catches.find((c) => c.id === ps.catch_id)?.player_id === p.id)
+              .reduce((sum, ps) => {
+                const pokemonId = catches.find((c) => c.id === ps.catch_id)?.pokemon_id
+                return sum + (pokemonId ? (bstById.get(pokemonId) ?? 0) : 0)
+              }, 0)
+            return (
             <div key={p.id} className="flex items-center" style={{ gap: GAP }}>
               {/* Player label */}
-              <div style={{ width: LABEL_W, flexShrink: 0 }} className="flex items-center gap-2 pr-2">
-                <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
-                <span className="text-sm font-semibold truncate" style={{ color: p.color }}>{p.name}</span>
+              <div style={{ width: LABEL_W, flexShrink: 0 }} className="flex flex-col gap-0.5 pr-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
+                  <span className="text-sm font-semibold truncate" style={{ color: p.color }}>{p.name}</span>
+                </div>
+                {playerBst > 0 && (
+                  <span className="text-[10px] text-text-muted leading-none pl-4">BST {playerBst.toLocaleString()}</span>
+                )}
               </div>
               {/* One card per soul link */}
               {orderedLinks.map((link) => {
@@ -479,7 +516,7 @@ function PartyLinkTable({ players, partySlots, catches, soulLinks, levelCap, onR
                 )
               })}
             </div>
-          ))}
+          )})}
         </div>
       </CardContent>
     </Card>
@@ -1560,7 +1597,7 @@ export function PartyTracker() {
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
         runId={activeRun.id}
-        onAdded={(link) => { optimisticAddLink(link); refreshParty() }}
+        onAdded={(link) => optimisticAddLink(link)}
       />
     </div>
   )
