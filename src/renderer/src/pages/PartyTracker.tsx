@@ -429,7 +429,10 @@ function PartyLinkTable({ players, partySlots, catches, soulLinks, levelCap, onR
     return minSlot(a) - minSlot(b)
   })
 
-  // Batch-fetch BST for all party pokemon using the shared ['pokemon', id] cache key
+  const { activeRun } = useAppStore()
+  const guaranteedLevel = activeRun?.ruleset.guaranteedEvolutionLevel ?? null
+
+  // Unique pokemon IDs for all party slots
   const partyPokemonIds = useMemo(() => {
     return [...new Set(
       partySlots
@@ -438,6 +441,17 @@ function PartyLinkTable({ players, partySlots, catches, soulLinks, levelCap, onR
     )]
   }, [partySlots, catches])
 
+  // pokemon_id → pokemon_name needed for evolution resolution
+  const pokemonNameMap = useMemo(() => {
+    const map = new Map<number, string>()
+    partySlots.forEach((ps) => {
+      const c = catches.find((x) => x.id === ps.catch_id)
+      if (c?.pokemon_id && c.pokemon_name) map.set(c.pokemon_id, c.pokemon_name)
+    })
+    return map
+  }, [partySlots, catches])
+
+  // Base pokemon data (BST fallback + species URL)
   const bstResults = useQueries({
     queries: partyPokemonIds.map((id) => ({
       queryKey: ['pokemon', id],
@@ -450,14 +464,103 @@ function PartyLinkTable({ players, partySlots, catches, soulLinks, levelCap, onR
     })),
   })
 
-  const bstById = useMemo(() => {
+  // Species data for evolution chain URL (only when level cap or guaranteed level is set)
+  const speciesResults = useQueries({
+    queries: partyPokemonIds.map((id) => ({
+      queryKey: ['pokemon-species', id],
+      queryFn: async (): Promise<PokemonSpeciesData> => {
+        const res = await fetch(`https://pokeapi.co/api/v2/pokemon-species/${id}`)
+        if (!res.ok) throw new Error(`PokéAPI error: ${res.status}`)
+        return res.json()
+      },
+      staleTime: Infinity,
+      enabled: id > 0 && (levelCap !== null || guaranteedLevel !== null),
+    })),
+  })
+
+  const chainUrls = useMemo(() => {
+    const urls = new Set<string>()
+    speciesResults.forEach((r) => { if (r.data?.evolution_chain?.url) urls.add(r.data.evolution_chain.url) })
+    return [...urls]
+  }, [speciesResults])
+
+  const chainResults = useQueries({
+    queries: chainUrls.map((url) => ({
+      queryKey: ['evolution-chain', url],
+      queryFn: async (): Promise<EvolutionChainData> => {
+        const res = await fetch(url)
+        if (!res.ok) throw new Error(`PokéAPI error: ${res.status}`)
+        return res.json()
+      },
+      staleTime: Infinity,
+    })),
+  })
+
+  const chainMap = useMemo(() => {
+    const map = new Map<string, EvolutionChainData['chain']>()
+    chainUrls.forEach((url, i) => { const d = chainResults[i]?.data; if (d) map.set(url, d.chain) })
+    return map
+  }, [chainResults, chainUrls])
+
+  // Resolve the evolved name for each pokemon at the current level cap
+  const evolvedNameMap = useMemo(() => {
+    if (levelCap === null && guaranteedLevel === null) return new Map<number, string>()
+    const map = new Map<number, string>()
+    partyPokemonIds.forEach((id, i) => {
+      const name = pokemonNameMap.get(id)
+      if (!name) return
+      const chainUrl = speciesResults[i]?.data?.evolution_chain?.url ?? ''
+      const chain = chainMap.get(chainUrl)
+      if (!chain) return
+      let evolved: string
+      if (guaranteedLevel !== null && levelCap !== null && levelCap >= guaranteedLevel) {
+        evolved = resolveFullEvolution(chain, name)
+      } else if (levelCap !== null) {
+        evolved = resolveEvolutionAtLevel(chain, name, levelCap)
+      } else {
+        return
+      }
+      if (evolved !== name) map.set(id, evolved)
+    })
+    return map
+  }, [partyPokemonIds, pokemonNameMap, speciesResults, chainMap, levelCap, guaranteedLevel])
+
+  // Fetch evolved-form data so we can read its BST
+  const evolvedNames = useMemo(() => [...new Set(evolvedNameMap.values())], [evolvedNameMap])
+
+  const evolvedResults = useQueries({
+    queries: evolvedNames.map((name) => ({
+      queryKey: ['pokemon', name.toLowerCase()],
+      queryFn: async (): Promise<PokemonData> => {
+        const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${name.toLowerCase()}`)
+        if (!res.ok) throw new Error(`PokéAPI error: ${res.status}`)
+        return res.json()
+      },
+      staleTime: Infinity,
+    })),
+  })
+
+  const evolvedBstByName = useMemo(() => {
+    const map = new Map<string, number>()
+    evolvedNames.forEach((name, i) => {
+      const data = evolvedResults[i]?.data
+      if (data) map.set(name.toLowerCase(), data.stats.reduce((s, x) => s + x.base_stat, 0))
+    })
+    return map
+  }, [evolvedResults, evolvedNames])
+
+  // Effective BST: use evolved form's BST when available, fall back to base form
+  const effectiveBstMap = useMemo(() => {
     const map = new Map<number, number>()
     partyPokemonIds.forEach((id, i) => {
       const data = bstResults[i]?.data
-      if (data) map.set(id, data.stats.reduce((s, x) => s + x.base_stat, 0))
+      if (!data) return
+      const evolvedName = evolvedNameMap.get(id)
+      const evolvedBst = evolvedName ? evolvedBstByName.get(evolvedName.toLowerCase()) : undefined
+      map.set(id, evolvedBst ?? data.stats.reduce((s, x) => s + x.base_stat, 0))
     })
     return map
-  }, [bstResults, partyPokemonIds])
+  }, [bstResults, partyPokemonIds, evolvedNameMap, evolvedBstByName])
 
   if (orderedLinks.length === 0) return null
 
@@ -486,11 +589,11 @@ function PartyLinkTable({ players, partySlots, catches, soulLinks, levelCap, onR
             const playerSlots = partySlots.filter((ps) => catches.find((c) => c.id === ps.catch_id)?.player_id === p.id)
             const playerBst = playerSlots.reduce((sum, ps) => {
               const pokemonId = catches.find((c) => c.id === ps.catch_id)?.pokemon_id
-              return sum + (pokemonId ? (bstById.get(pokemonId) ?? 0) : 0)
+              return sum + (pokemonId ? (effectiveBstMap.get(pokemonId) ?? 0) : 0)
             }, 0)
             const bstCount = playerSlots.filter((ps) => {
               const pokemonId = catches.find((c) => c.id === ps.catch_id)?.pokemon_id
-              return pokemonId && bstById.has(pokemonId)
+              return pokemonId && effectiveBstMap.has(pokemonId)
             }).length
             const avgBst = bstCount > 0 ? Math.round(playerBst / bstCount) : 0
             return (
