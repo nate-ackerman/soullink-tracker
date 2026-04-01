@@ -42,7 +42,6 @@ function EvolutionStage({ name, isSelected, onClick }: { name: string; isSelecte
 const LEARN_METHOD_TABS = [
   { id: 'level-up', label: 'Level Up' },
   { id: 'machine', label: 'TM/HM' },
-  { id: 'egg', label: 'Egg' },
   { id: 'tutor', label: 'Tutor' },
   { id: 'matchups', label: 'Matchups' },
 ]
@@ -266,11 +265,6 @@ export function LearnsetSearch() {
               </div>
             )}
           </div>
-          {activeRun && (
-            <div className="text-xs text-text-muted pb-2">
-              {activeRun.game ? `${activeRun.game} learnset` : `Gen ${generation} learnset`}
-            </div>
-          )}
         </div>
 
         {evoLine.length > 1 && (

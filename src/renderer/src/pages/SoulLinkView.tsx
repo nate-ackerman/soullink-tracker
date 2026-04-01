@@ -1,10 +1,12 @@
 import { useState, useMemo, useRef } from 'react'
+import { useQueries } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Link2, Skull, CheckCircle, X, Pencil, Check } from 'lucide-react'
+import { Link2, Skull, CheckCircle, X, Pencil, Check, Search } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { Card, CardContent } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { EvolvedCatchSprite } from '../components/pokemon/EvolvedCatchSprite'
+import { EditPokemonModal } from '../components/pokemon/EditPokemonModal'
 import { useAppStore } from '../store/appStore'
 import { useApi } from '../lib/useApi'
 import { getGameById } from '../data/games'
@@ -14,11 +16,12 @@ import type { SoulLink, Catch, Player } from '../types'
 
 type FilterMode = 'all' | 'active' | 'broken'
 
-function LinkedPokemonMiniCard({ c, player, levelCap, isBroken }: {
+function LinkedPokemonMiniCard({ c, player, levelCap, isBroken, onEdit }: {
   c: Catch
   player: Player | undefined
   levelCap: number | null
   isBroken: boolean
+  onEdit?: () => void
 }) {
   const navigate = useNavigate()
   const isDead = c.status === 'dead'
@@ -35,11 +38,20 @@ function LinkedPokemonMiniCard({ c, player, levelCap, isBroken }: {
 
   return (
     <div
-      className={`flex flex-col items-center gap-1 p-2 rounded-lg border w-[7rem] ${
+      className={`group relative flex flex-col items-center gap-1 p-2 rounded-lg border w-[7rem] ${
         isDead ? 'border-red-800/40 bg-red-900/10' : 'border-border bg-elevated'
       }`}
       style={player ? { borderLeftColor: player.color, borderLeftWidth: 2 } : undefined}
     >
+      {onEdit && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onEdit() }}
+          className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-card text-text-muted hover:text-text-primary"
+          title="Edit species"
+        >
+          <Pencil className="w-3 h-3" />
+        </button>
+      )}
       <div
         className="relative cursor-pointer transition-opacity hover:opacity-75"
         onClick={() => displayName && navigate('/learnset', { state: { pokemon: displayName } })}
@@ -69,7 +81,7 @@ function LinkedPokemonMiniCard({ c, player, levelCap, isBroken }: {
   )
 }
 
-function LinkRow({ link, catches, players, routeName, levelCap, onMarkDeath, onRefresh }: {
+function LinkRow({ link, catches, players, routeName, levelCap, onMarkDeath, onRefresh, onEdit }: {
   link: SoulLink
   catches: Catch[]
   players: Player[]
@@ -77,6 +89,7 @@ function LinkRow({ link, catches, players, routeName, levelCap, onMarkDeath, onR
   levelCap: number | null
   onMarkDeath?: () => void
   onRefresh: () => void
+  onEdit: (c: Catch) => void
 }) {
   const linkedCatches = link.catch_ids
     .map((cid) => catches.find((c) => c.id === cid))
@@ -153,7 +166,7 @@ function LinkRow({ link, catches, players, routeName, levelCap, onMarkDeath, onR
                       <Link2 className="w-3 h-3" />
                     </div>
                   )}
-                  <LinkedPokemonMiniCard c={c} player={player} levelCap={levelCap} isBroken={isBroken} />
+                  <LinkedPokemonMiniCard c={c} player={player} levelCap={levelCap} isBroken={isBroken} onEdit={() => onEdit(c)} />
                 </div>
               )
             })}
@@ -282,10 +295,79 @@ function DeathModal({ link, catches, players, levelCap, onConfirm, onClose }: De
 // ── Main View ─────────────────────────────────────────────────────────────────
 
 export function SoulLinkView() {
-  const { activeRun, activeRunId, catches, soulLinks, players, levelCap, loadRunData } = useAppStore()
+  const { activeRun, activeRunId, catches, soulLinks, players, levelCap, loadRunData, refreshCatches } = useAppStore()
   const api = useApi()
-  const [filter, setFilter] = useState<FilterMode>('all')
+  const [filter, setFilter] = useState<FilterMode>('active')
+  const [searchQuery, setSearchQuery] = useState('')
   const [deathLink, setDeathLink] = useState<SoulLink | null>(null)
+  const [editCatch, setEditCatch] = useState<Catch | null>(null)
+
+  // ── Evolution resolution for search ──────────────────────────────────────────
+  // Build a map of catch_id → evolved name at levelCap so search can match
+  // either the base species or its current evolved form.
+
+  const linkCatches = useMemo(() => {
+    const ids = new Set(soulLinks.flatMap((l) => l.catch_ids))
+    return catches.filter((c) => ids.has(c.id) && (c.pokemon_id ?? 0) > 0)
+  }, [soulLinks, catches])
+
+  const uniquePokemonIds = useMemo(
+    () => [...new Set(linkCatches.map((c) => c.pokemon_id as number))],
+    [linkCatches]
+  )
+
+  const speciesResults = useQueries({
+    queries: uniquePokemonIds.map((id) => ({
+      queryKey: ['pokemon-species', id],
+      queryFn: async () => {
+        const res = await fetch(`https://pokeapi.co/api/v2/pokemon-species/${id}`)
+        if (!res.ok) throw new Error(`species ${id}`)
+        return res.json()
+      },
+      staleTime: Infinity,
+    })),
+  })
+
+  const chainUrls = useMemo(() => {
+    const urls = new Set<string>()
+    speciesResults.forEach((r) => { if (r.data?.evolution_chain?.url) urls.add(r.data.evolution_chain.url) })
+    return [...urls]
+  }, [speciesResults])
+
+  const chainResults = useQueries({
+    queries: chainUrls.map((url) => ({
+      queryKey: ['evolution-chain', url],
+      queryFn: async () => {
+        const res = await fetch(url)
+        if (!res.ok) throw new Error(`chain ${url}`)
+        return res.json()
+      },
+      staleTime: Infinity,
+    })),
+  })
+
+  const chainMap = useMemo(() => {
+    const map = new Map<string, any>()
+    chainUrls.forEach((url, i) => { if (chainResults[i]?.data) map.set(url, chainResults[i].data) })
+    return map
+  }, [chainUrls, chainResults])
+
+  // catch_id → evolved pokemon name (only set when different from base)
+  const evolvedNameByCatchId = useMemo(() => {
+    const map = new Map<string, string>()
+    if (levelCap === null) return map
+    linkCatches.forEach((c, _) => {
+      if (!c.pokemon_name || !c.pokemon_id) return
+      const idx = uniquePokemonIds.indexOf(c.pokemon_id)
+      const species = speciesResults[idx]?.data
+      const chainUrl = species?.evolution_chain?.url
+      const chainData = chainUrl ? chainMap.get(chainUrl) : null
+      if (!chainData) return
+      const evolved = resolveEvolutionAtLevel(chainData.chain, c.pokemon_name, levelCap)
+      if (evolved && evolved !== c.pokemon_name) map.set(c.id, evolved)
+    })
+    return map
+  }, [linkCatches, uniquePokemonIds, speciesResults, chainMap, levelCap])
 
   if (!activeRun) return <div className="p-6 text-text-muted">No active run</div>
 
@@ -304,10 +386,29 @@ export function SoulLinkView() {
   const active = soulLinks.filter((sl) => sl.status === 'active')
   const broken = soulLinks.filter((sl) => sl.status === 'broken')
 
-  const filtered =
+  const filtered = (
     filter === 'all' ? soulLinks
     : filter === 'active' ? active
     : broken
+  ).slice().sort((a, b) => {
+    const routes = gameInfo?.routes ?? []
+    const orderA = routes.find((r) => r.id === a.route_id)?.order ?? Infinity
+    const orderB = routes.find((r) => r.id === b.route_id)?.order ?? Infinity
+    return orderA - orderB
+  }).filter((link) => {
+    const q = searchQuery.toLowerCase()
+    if (!q) return true
+    if (getRouteName(link.route_id).toLowerCase().includes(q)) return true
+    if ((link.nickname ?? '').toLowerCase().includes(q)) return true
+    return link.catch_ids.some((cid) => {
+      const c = catches.find((x) => x.id === cid)
+      return (
+        (c?.pokemon_name ?? '').toLowerCase().includes(q) ||
+        (c?.nickname ?? '').toLowerCase().includes(q) ||
+        (evolvedNameByCatchId.get(cid) ?? '').toLowerCase().includes(q)
+      )
+    })
+  })
 
   const stats = { total: soulLinks.length, active: active.length, broken: broken.length }
 
@@ -338,9 +439,10 @@ export function SoulLinkView() {
         </div>
       </div>
 
-      {/* Filter tabs */}
-      <div className="flex gap-2">
-        {(['all', 'active', 'broken'] as FilterMode[]).map((f) => (
+      {/* Search + Filter tabs */}
+      <div className="relative flex items-center">
+        <div className="flex gap-2">
+        {(['active', 'broken', 'all'] as FilterMode[]).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
@@ -356,6 +458,18 @@ export function SoulLinkView() {
             </span>
           </button>
         ))}
+        </div>
+        <div className="absolute left-1/2 -translate-x-1/2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" />
+            <input
+              className="bg-input border border-border rounded pl-8 pr-3 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-border-light w-80"
+              placeholder="Search by route, species, nickname…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+        </div>
       </div>
 
       {/* Links */}
@@ -365,6 +479,8 @@ export function SoulLinkView() {
           <p className="text-text-secondary text-sm">
             {soulLinks.length === 0
               ? 'No soul links yet'
+              : searchQuery
+              ? 'No links match your search'
               : `No ${filter} links`}
           </p>
           {soulLinks.length === 0 && (
@@ -385,10 +501,19 @@ export function SoulLinkView() {
               levelCap={levelCap}
               onMarkDeath={link.status === 'active' ? () => setDeathLink(link) : undefined}
               onRefresh={() => activeRunId && loadRunData(activeRunId)}
+              onEdit={(c) => setEditCatch(c)}
             />
           ))}
         </div>
       )}
+
+      {/* Edit Species Modal */}
+      <EditPokemonModal
+        open={editCatch !== null}
+        onClose={() => setEditCatch(null)}
+        catch_={editCatch}
+        onSaved={refreshCatches}
+      />
 
       {/* Death Modal */}
       {deathLink && (

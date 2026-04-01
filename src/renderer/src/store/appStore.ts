@@ -31,12 +31,25 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 
 // Kept outside the store to avoid triggering re-renders on channel state changes
 let _realtimeChannel: RealtimeChannel | null = null
+let _partyRefreshTimer: ReturnType<typeof setTimeout> | null = null
 
 function _unsubscribe() {
   if (_realtimeChannel) {
     supabase.removeChannel(_realtimeChannel)
     _realtimeChannel = null
   }
+  if (_partyRefreshTimer) {
+    clearTimeout(_partyRefreshTimer)
+    _partyRefreshTimer = null
+  }
+}
+
+function _debouncedRefreshParty(refresh: () => void) {
+  if (_partyRefreshTimer) clearTimeout(_partyRefreshTimer)
+  _partyRefreshTimer = setTimeout(() => {
+    _partyRefreshTimer = null
+    refresh()
+  }, 300)
 }
 
 interface AppState {
@@ -162,7 +175,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           .on('postgres_changes', { event: '*', schema: 'public', table: 'soul_links', filter: `run_id=eq.${runId}` },
             () => get().refreshSoulLinks())
           .on('postgres_changes', { event: '*', schema: 'public', table: 'party_slots', filter: `run_id=eq.${runId}` },
-            () => get().refreshParty())
+            () => _debouncedRefreshParty(() => get().refreshParty()))
           .on('postgres_changes', { event: '*', schema: 'public', table: 'notes', filter: `run_id=eq.${runId}` },
             () => get().refreshNotes())
           .on('postgres_changes', { event: '*', schema: 'public', table: 'battle_records', filter: `run_id=eq.${runId}` },

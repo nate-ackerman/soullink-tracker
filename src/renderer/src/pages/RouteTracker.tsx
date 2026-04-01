@@ -12,7 +12,9 @@ import { useAppStore } from '../store/appStore'
 import { useApi } from '../lib/useApi'
 import { getGameById } from '../data/games'
 import type { RouteInfo } from '../data/games'
-import { usePokemonSearch, usePokemonByName } from '../api/pokeapi'
+import { usePokemonByName } from '../api/pokeapi'
+import { PokemonAutocomplete } from '../components/pokemon/PokemonAutocomplete'
+import { EditPokemonModal } from '../components/pokemon/EditPokemonModal'
 import type { Catch, Player, Ruleset } from '../types'
 
 // ── Encounter filter ──────────────────────────────────────────────────────────
@@ -38,77 +40,6 @@ type RouteStatus = 'empty' | 'pending' | 'linked' | 'failed'
 
 function playerHasLogged(playerId: string, routeId: string, catches: Catch[]): boolean {
   return catches.some((c) => c.player_id === playerId && c.route_id === routeId)
-}
-
-// ── Pokémon autocomplete ───────────────────────────────────────────────────────
-
-function PokemonAutocomplete({
-  value,
-  onChange
-}: {
-  value: string
-  onChange: (name: string, id?: number) => void
-}) {
-  const [query, setQuery] = useState(value)
-  const [showDropdown, setShowDropdown] = useState(false)
-  const [highlightedIndex, setHighlightedIndex] = useState(-1)
-  const { data } = usePokemonSearch(query)
-
-  function selectResult(p: { name: string; url: string }) {
-    const id = parseInt(p.url.split('/').filter(Boolean).pop() ?? '0', 10)
-    setQuery(p.name)
-    setShowDropdown(false)
-    setHighlightedIndex(-1)
-    onChange(p.name, id || undefined)
-  }
-
-  return (
-    <div className="relative">
-      <Input
-        label="Pokémon"
-        placeholder="e.g. pikachu"
-        value={query}
-        onChange={(e) => {
-          setQuery(e.target.value)
-          setShowDropdown(true)
-          setHighlightedIndex(-1)
-          onChange(e.target.value)
-        }}
-        onFocus={() => setShowDropdown(true)}
-        onBlur={() => setTimeout(() => { setShowDropdown(false); setHighlightedIndex(-1) }, 200)}
-        onKeyDown={(e) => {
-          const results = data?.results ?? []
-          if (!showDropdown || results.length === 0 || query.length < 2) return
-          if (e.key === 'ArrowDown') {
-            e.preventDefault()
-            setHighlightedIndex((i) => Math.min(i + 1, results.length - 1))
-          } else if (e.key === 'ArrowUp') {
-            e.preventDefault()
-            setHighlightedIndex((i) => Math.max(i - 1, -1))
-          } else if (e.key === 'Enter') {
-            e.preventDefault()
-            if (highlightedIndex >= 0) selectResult(results[highlightedIndex])
-          } else if (e.key === 'Escape') {
-            setShowDropdown(false)
-            setHighlightedIndex(-1)
-          }
-        }}
-      />
-      {showDropdown && data && data.results.length > 0 && query.length >= 2 && (
-        <div className="absolute z-50 w-full mt-1 bg-elevated border border-border rounded shadow-xl max-h-48 overflow-y-auto">
-          {data.results.map((p, i) => (
-            <button
-              key={p.name}
-              onMouseDown={() => selectResult(p)}
-              className={`w-full text-left px-3 py-2 text-sm text-text-primary capitalize ${i === highlightedIndex ? 'bg-card' : 'hover:bg-card'}`}
-            >
-              {p.name}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
 }
 
 // ── Log catch modal ───────────────────────────────────────────────────────────
@@ -177,71 +108,6 @@ function LogCatchModal({ open, onClose, routeId, player, runId, defaultLevel, on
           <Button variant="secondary" onClick={onClose} className="flex-1">Cancel</Button>
           <Button onClick={handleSubmit} loading={loading} disabled={!pokemonName} className="flex-1">
             <Plus className="w-4 h-4" /> Save Catch
-          </Button>
-        </div>
-      </div>
-    </Modal>
-  )
-}
-
-// ── Edit Pokémon modal ────────────────────────────────────────────────────────
-
-function EditPokemonModal({
-  open, onClose, catch_, onSaved
-}: {
-  open: boolean; onClose: () => void; catch_: Catch | null; onSaved: () => void
-}) {
-  const [pokemonName, setPokemonName] = useState('')
-  const [pokemonId, setPokemonId] = useState<number | undefined>()
-  const [loading, setLoading] = useState(false)
-  const prevId = useRef<string | undefined>()
-  const api = useApi()
-  const { optimisticUpdateCatch } = useAppStore()
-  const { data: resolved } = usePokemonByName(pokemonName)
-
-  // Reset state when a different catch is opened
-  useEffect(() => {
-    if (catch_?.id !== prevId.current) {
-      prevId.current = catch_?.id
-      setPokemonName(catch_?.pokemon_name ?? '')
-      setPokemonId(catch_?.pokemon_id ?? undefined)
-    }
-  })
-
-  async function handleSave() {
-    if (!catch_ || !pokemonName) return
-    setLoading(true)
-    try {
-      const resolvedId = resolved?.id ?? pokemonId
-      optimisticUpdateCatch(catch_.id, { pokemon_id: resolvedId ?? null, pokemon_name: pokemonName })
-      onClose()
-      await api.catches.update(catch_.id, {
-        pokemon_id: resolvedId ?? null,
-        pokemon_name: pokemonName,
-      } as Partial<Catch>)
-      onSaved()
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  if (!catch_) return null
-
-  return (
-    <Modal open={open} onOpenChange={(o) => !o && onClose()} title="Edit Pokémon Species">
-      <div className="space-y-3">
-        <p className="text-xs text-text-muted">
-          Change the Pokémon species (e.g. after a friendship/trade/item evolution).
-        </p>
-        <PokemonAutocomplete
-          key={catch_.id}
-          value={pokemonName}
-          onChange={(name, id) => { setPokemonName(name); if (id) setPokemonId(id) }}
-        />
-        <div className="flex gap-2 pt-2">
-          <Button variant="secondary" onClick={onClose} className="flex-1">Cancel</Button>
-          <Button onClick={handleSave} loading={loading} disabled={!pokemonName} className="flex-1">
-            Save
           </Button>
         </div>
       </div>
@@ -587,9 +453,17 @@ export function RouteTracker() {
     ...addedEncounters.map((r) => ({ ...r, order: 9999, name: renamedEncounters[r.id] ?? r.name })),
   ]
 
-  const filteredRoutes = routes.filter((r) =>
-    r.name.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  const filteredRoutes = routes.filter((r) => {
+    const q = searchQuery.toLowerCase()
+    if (!q) return true
+    if (r.name.toLowerCase().includes(q)) return true
+    return catches
+      .filter((c) => c.route_id === r.id && c.status !== 'failed')
+      .some((c) =>
+        (c.pokemon_name ?? '').toLowerCase().includes(q) ||
+        (c.nickname ?? '').toLowerCase().includes(q)
+      )
+  })
 
   // Checkpoint-gated accessibility (only for games with locations data on gymLeaders)
   const sortedLeaders = [...(gameInfo?.gymLeaders ?? [])].sort((a, b) => a.levelCap - b.levelCap)

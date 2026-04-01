@@ -17,6 +17,22 @@ import {
   STATUS_OPTIONS,
 } from '../utils/catchRate'
 
+function getBallSpriteUrl(id: string): string {
+  return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/${id.replace('ball', '-ball')}.png`
+}
+
+function BallIcon({ id, size = 24 }: { id: string; size?: number }) {
+  return (
+    <img
+      src={getBallSpriteUrl(id)}
+      alt=""
+      width={size}
+      height={size}
+      style={{ imageRendering: 'pixelated' }}
+    />
+  )
+}
+
 export function CatchCalc() {
   const { activeRun, levelCap } = useAppStore()
   const [pokemonQuery, setPokemonQuery] = useState('')
@@ -30,7 +46,7 @@ export function CatchCalc() {
     if (levelCap !== null) setWildLevel(String(levelCap))
   }, [levelCap])
   const [turns, setTurns] = useState('1')
-  const [hpPercent, setHpPercent] = useState('50')
+  const [hpPercent, setHpPercent] = useState('100')
   const [status, setStatus] = useState('none')
   const [selectedBall, setSelectedBall] = useState('pokeball')
 
@@ -48,7 +64,7 @@ export function CatchCalc() {
     ? Math.floor((2 * baseHp * level) / 100) + level + 10
     : 100
 
-  const hpPct = Math.max(1, Math.min(100, parseFloat(hpPercent) || 50))
+  const hpPct = Math.max(1, Math.min(100, parseFloat(hpPercent) || 100))
   const currentHp = Math.max(1, Math.floor((maxHp * hpPct) / 100))
   const catchRate = speciesData?.capture_rate ?? 45
   const statusBonus = STATUS_BONUSES[status] ?? 1
@@ -81,7 +97,7 @@ export function CatchCalc() {
       calculateAllBalls(
         { maxHp, currentHp, catchRate, statusBonus, generation, level, turns: turnCount },
         availableBalls
-      ),
+      ).sort((a, b) => b.probability - a.probability),
     [maxHp, currentHp, catchRate, statusBonus, generation, level, turnCount, availableBalls]
   )
 
@@ -255,82 +271,92 @@ export function CatchCalc() {
         </CardContent>
       </Card>
 
-      {/* Main result */}
-      <Card className="border-border-light">
-        <CardContent className="pt-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-sm text-text-secondary">{selectedBallData.name}</span>
-              {selectedBallData.note && (
-                <span className="text-xs text-text-muted ml-1.5">({selectedBallData.note})</span>
-              )}
-              <p className="text-xs text-text-muted">
-                ×{selectedBallBonus.toFixed(selectedBallBonus % 1 === 0 ? 0 : 1)} ball bonus
-              </p>
-            </div>
-            <span className="text-2xl font-bold" style={{ color: getProbColor(mainResult.probability) }}>
-              {mainResult.percentDisplay}
-            </span>
-          </div>
-          <ProgressBar
-            value={mainResult.probability * 100}
-            max={100}
-            color={getProbColor(mainResult.probability)}
-            showPercent={false}
-          />
-          <div className="flex gap-4 text-sm">
-            <div>
-              <p className="text-text-muted text-xs">Expected balls</p>
-              <p className="font-medium text-text-primary">
-                {mainResult.probability >= 1 ? '1' : mainResult.expectedBalls.toFixed(1)}
-              </p>
-            </div>
-            <div>
-              <p className="text-text-muted text-xs">HP (approx)</p>
-              <p className="font-medium text-text-primary">{currentHp} / {maxHp}</p>
-            </div>
-            <div>
-              <p className="text-text-muted text-xs">Catch rate</p>
-              <p className="font-medium text-text-primary">{catchRate}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* All ball comparison */}
-      <Card>
-        <CardHeader>
-          <CardTitle>All Ball Comparison</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {allBallResults.map((ball) => (
-            <div key={ball.id} className="flex items-center gap-3">
-              <div className="w-32 shrink-0">
-                <p className="text-xs text-text-secondary truncate">{ball.name}</p>
-                <p className="text-[10px] text-text-muted">
-                  {ball.note
-                    ? `${ball.note} · ×${ball.ballBonus.toFixed(ball.ballBonus % 1 === 0 ? 0 : 1)}`
-                    : `×${ball.ballBonus.toFixed(ball.ballBonus % 1 === 0 ? 0 : 1)}`
-                  }
-                </p>
+      {/* Main result — only shown once a species is selected */}
+      {pokemonData && (
+        <Card className="border-border-light">
+          <CardContent className="pt-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <BallIcon id={activeBallId} size={32} />
+                <div>
+                  <span className="text-sm text-text-secondary">{selectedBallData.name}</span>
+                  {selectedBallData.note && (
+                    <span className="text-xs text-text-muted ml-1.5">({selectedBallData.note})</span>
+                  )}
+                  <p className="text-xs text-text-muted">
+                    ×{selectedBallBonus.toFixed(selectedBallBonus % 1 === 0 ? 0 : 1)} ball bonus
+                  </p>
+                </div>
               </div>
-              <div className="flex-1">
-                <ProgressBar
-                  value={ball.probability * 100}
-                  max={100}
-                  color={getProbColor(ball.probability)}
-                />
-              </div>
-              <span
-                className="text-xs font-medium w-14 text-right"
-                style={{ color: getProbColor(ball.probability) }}
-              >
-                {ball.percentDisplay}
+              <span className="text-2xl font-bold" style={{ color: getProbColor(mainResult.probability) }}>
+                {mainResult.percentDisplay}
               </span>
             </div>
-          ))}
-        </CardContent>
-      </Card>
+            <ProgressBar
+              value={mainResult.probability * 100}
+              max={100}
+              color={getProbColor(mainResult.probability)}
+              showPercent={false}
+            />
+            <div className="flex gap-4 text-sm">
+              <div>
+                <p className="text-text-muted text-xs">Expected balls</p>
+                <p className="font-medium text-text-primary">
+                  {mainResult.probability >= 1 ? '1' : mainResult.expectedBalls.toFixed(1)}
+                </p>
+              </div>
+              <div>
+                <p className="text-text-muted text-xs">HP (approx)</p>
+                <p className="font-medium text-text-primary">{currentHp} / {maxHp}</p>
+              </div>
+              <div>
+                <p className="text-text-muted text-xs">Catch rate</p>
+                <p className="font-medium text-text-primary">{catchRate}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* All ball comparison — only shown once a species is selected */}
+      {pokemonData && (
+        <Card>
+          <CardHeader>
+            <CardTitle>All Ball Comparison</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {allBallResults.map((ball) => (
+              <div key={ball.id} className="flex items-center gap-3">
+                <div className="w-36 shrink-0 flex items-center gap-1.5">
+                  <BallIcon id={ball.id} size={20} />
+                  <div className="min-w-0">
+                    <p className="text-xs text-text-secondary truncate">{ball.name}</p>
+                    <p className="text-[10px] text-text-muted">
+                      {ball.note
+                        ? `${ball.note} · ×${ball.ballBonus.toFixed(ball.ballBonus % 1 === 0 ? 0 : 1)}`
+                        : `×${ball.ballBonus.toFixed(ball.ballBonus % 1 === 0 ? 0 : 1)}`
+                      }
+                    </p>
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <ProgressBar
+                    value={ball.probability * 100}
+                    max={100}
+                    color={getProbColor(ball.probability)}
+                  />
+                </div>
+                <span
+                  className="text-xs font-medium w-14 text-right"
+                  style={{ color: getProbColor(ball.probability) }}
+                >
+                  {ball.percentDisplay}
+                </span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

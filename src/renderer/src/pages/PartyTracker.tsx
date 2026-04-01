@@ -1348,6 +1348,34 @@ function PartySnapshotRows({ snapshot, catches, players }: {
   )
 }
 
+// ── Trainer sprite (shared with Dashboard) ────────────────────────────────────
+
+function trainerSpriteKey(name: string): string {
+  // For "A & B" or "A / B" names, use just the first person's sprite
+  const primary = name.split(/[&/]/)[0]
+  return primary
+    .toLowerCase()
+    .replace(/\./g, '')
+    .replace(/[^a-z0-9 ]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+}
+
+function TrainerSprite({ name, size = 40 }: { name: string; size?: number }) {
+  const [visible, setVisible] = useState(true)
+  if (!visible) return null
+  return (
+    <img
+      src={`https://play.pokemonshowdown.com/sprites/trainers/${trainerSpriteKey(name)}.png`}
+      alt={name}
+      width={size}
+      height={size}
+      style={{ imageRendering: 'pixelated', objectFit: 'contain' }}
+      onError={() => setVisible(false)}
+    />
+  )
+}
+
 // ── Past Battle Parties ───────────────────────────────────────────────────────
 
 function PastBattlePartiesSection({
@@ -1414,9 +1442,12 @@ function PastBattlePartiesSection({
         return (
           <div key={key} className="p-3 rounded-lg bg-elevated border border-border">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-semibold text-text-primary">
-                {battles.map((b) => b.gym_leader_name).join(', ')}
-              </p>
+              <div className="flex items-center gap-2 min-w-0">
+                <TrainerSprite name={rep.gym_leader_name} size={32} />
+                <p className="text-xs font-semibold text-text-primary">
+                  {battles.map((b) => `${b.gym_leader_name} (Lv.${b.level_cap})`).join(', ')}
+                </p>
+              </div>
               <button
                 onClick={() => loadParty(rep)}
                 disabled={loading === rep.id}

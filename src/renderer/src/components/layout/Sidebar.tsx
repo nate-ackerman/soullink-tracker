@@ -11,7 +11,7 @@ const NAV_ITEMS = [
   { to: '/routes', icon: Map, label: 'Encounters' },
   { to: '/soul-links', icon: Link2, label: 'Soul Links' },
   { to: '/party', icon: Users, label: 'Party' },
-  { to: '/learnset', icon: BookOpen, label: 'Learnset & Stats' },
+  { to: '/learnset', icon: BookOpen, label: 'Pokemon Data' },
   { to: '/catch-calc', icon: Calculator, label: 'Catch Calc' },
   { to: '/notes', icon: FileText, label: 'Notes' },
   { to: '/info', icon: Info, label: 'Info' },

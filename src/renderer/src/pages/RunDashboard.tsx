@@ -14,6 +14,34 @@ import { resolveEvolutionAtLevel } from '../utils/evolutionUtils'
 import type { RouteInfo } from '../data/games'
 import type { Catch, SoulLink } from '../types'
 
+// ── Trainer sprite ────────────────────────────────────────────────────────────
+
+function trainerSpriteKey(name: string): string {
+  // For "A & B" or "A / B" names, use just the first person's sprite
+  const primary = name.split(/[&/]/)[0]
+  return primary
+    .toLowerCase()
+    .replace(/\./g, '')
+    .replace(/[^a-z0-9 ]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+}
+
+function TrainerSprite({ name, size = 40 }: { name: string; size?: number }) {
+  const [visible, setVisible] = useState(true)
+  if (!visible) return null
+  return (
+    <img
+      src={`https://play.pokemonshowdown.com/sprites/trainers/${trainerSpriteKey(name)}.png`}
+      alt={name}
+      width={size}
+      height={size}
+      style={{ imageRendering: 'pixelated', objectFit: 'contain' }}
+      onError={() => setVisible(false)}
+    />
+  )
+}
+
 // ── Party member cell (resolves evolution for learnset navigation) ────────────
 
 function PartyMemberCell({ member, levelCap }: { member: Catch; levelCap: number | null }) {
@@ -510,20 +538,23 @@ export function RunDashboard() {
 
                   return (
                     <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <p className={`text-base font-bold ${
-                          displayKind === 'champion' ? 'text-accent-gold' :
-                          displayKind === 'elite4' ? 'text-purple-400' :
-                          displayKind === 'rival' ? 'text-blue-400' :
-                          displayKind === 'boss' ? 'text-red-400' :
-                          'text-text-primary'
-                        }`}>{displayName}</p>
-                        {displayCity && <p className="text-xs text-text-muted">{displayCity}</p>}
-                        {displayTypes.length > 0 && (
-                          <div className="flex gap-1 mt-1.5">
-                            {displayTypes.map((t) => <TypeBadge key={t} type={t} size="sm" />)}
-                          </div>
-                        )}
+                      <div className="flex items-center gap-3">
+                        <TrainerSprite name={displayName} size={48} />
+                        <div>
+                          <p className={`text-base font-bold ${
+                            displayKind === 'champion' ? 'text-accent-gold' :
+                            displayKind === 'elite4' ? 'text-purple-400' :
+                            displayKind === 'rival' ? 'text-blue-400' :
+                            displayKind === 'boss' ? 'text-red-400' :
+                            'text-text-primary'
+                          }`}>{displayName}</p>
+                          {displayCity && <p className="text-xs text-text-muted">{displayCity}</p>}
+                          {displayTypes.length > 0 && (
+                            <div className="flex gap-1 mt-1.5">
+                              {displayTypes.map((t) => <TypeBadge key={t} type={t} size="sm" />)}
+                            </div>
+                          )}
+                        </div>
                       </div>
                       <div className="text-right">
                         <p className="text-2xl font-bold text-accent-gold">Lv. {displayCap}</p>
@@ -571,70 +602,18 @@ export function RunDashboard() {
             </button>
           )}
 
-          {/* All battles list */}
-          {(battleRecords.length > 0 || gymLeaders.length > completedCount) && (
+          {/* Upcoming fights */}
+          {gymLeaders.length > completedCount && (
             <Card>
               <CardContent className="py-3">
-                <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">Battle Log</p>
+                <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">Upcoming Fights</p>
                 <div className="space-y-1">
-                  {/* Recorded battles, most recent first */}
-                  {[...battleRecords].reverse().map((battle) => {
-                    const allCatchIds = battle.party_snapshot.flatMap((ps) => ps.slots.map((s) => s.catch_id))
-                    const assigned = new Set<string>()
-                    const groups: string[][] = []
-                    for (const cid of allCatchIds) {
-                      if (assigned.has(cid)) continue
-                      const link = soulLinks.find((sl) => sl.catch_ids.includes(cid))
-                      if (link) {
-                        const group = link.catch_ids.filter((id) => allCatchIds.includes(id))
-                        groups.push(group)
-                        group.forEach((id) => assigned.add(id))
-                      } else {
-                        groups.push([cid])
-                        assigned.add(cid)
-                      }
-                    }
-                    return (
-                      <div key={battle.id} className="flex items-center gap-2 px-1 py-1 rounded">
-                        <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{
-                          backgroundColor: battle.outcome === 'victory' ? '#22c55e' : '#ecc94b'
-                        }} />
-                        <div className="min-w-[5rem] shrink-0">
-                          <span className="text-xs text-text-secondary font-medium">{battle.gym_leader_name}</span>
-                          <span className="text-[10px] text-text-muted ml-1.5">Lv.{battle.level_cap}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {groups.map((group, gi) => (
-                            <div key={gi} className="flex items-center gap-0.5">
-                              {group.map((cid, ci) => {
-                                const c = catches.find((x) => x.id === cid)
-                                return c ? (
-                                  <div key={cid} className="flex items-center gap-0.5">
-                                    {ci > 0 && <Link2 className="w-2 h-2 text-accent-teal" />}
-                                    <EvolvedCatchSprite pokemonId={c.pokemon_id} pokemonName={c.pokemon_name} levelCap={levelCap} size={18} grayscale={c.status === 'dead'} />
-                                  </div>
-                                ) : null
-                              })}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )
-                  })}
-                  {/* Divider between recorded and upcoming */}
-                  {battleRecords.length > 0 && gymLeaders.length > completedCount && (
-                    <div className="border-t border-border my-1" />
-                  )}
-                  {/* Remaining upcoming fights */}
                   {gymLeaders.slice(completedCount).map((leader, i) => (
-                    <div key={`upcoming-${i}`} className="flex items-center gap-2 px-1 py-1 opacity-80">
-                      <div className="w-1.5 h-1.5 rounded-full shrink-0 border border-border-light" />
-                      <div className="min-w-[5rem] shrink-0">
-                        <span className="text-xs text-text-muted font-medium">{leader.name}</span>
+                    <div key={`upcoming-${i}`} className="flex items-center gap-2 px-1 py-1">
+                      <TrainerSprite name={leader.name} size={28} />
+                      <div className="min-w-0 flex-1">
+                        <span className="text-xs text-text-secondary font-medium">{leader.name}</span>
                         <span className="text-[10px] text-text-muted ml-1.5">Lv.{adjustedCap(leader.levelCap)}</span>
-                      </div>
-                      <div className="flex gap-1">
-                        {leader.types.map((t) => <TypeBadge key={t} type={t} size="sm" />)}
                       </div>
                     </div>
                   ))}
@@ -700,22 +679,13 @@ export function RunDashboard() {
               const ps = playerSlots.find((s) => s.slot === slot)
               return ps ? catches.find((c) => c.id === ps.catch_id) : undefined
             })
-            const alive = catches.filter((c) => c.player_id === player.id && c.status === 'alive').length
-            const dead = catches.filter((c) => c.player_id === player.id && c.status === 'dead').length
-
             return (
               <Card key={player.id} className="overflow-hidden">
                 <div className="h-1" style={{ backgroundColor: player.color }} />
                 <CardContent className="pt-3 pb-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: player.color }} />
-                      <span className="text-sm font-semibold text-text-primary">{player.name}</span>
-                    </div>
-                    <div className="flex gap-2 text-xs text-text-muted">
-                      <span className="text-green-400">{alive} alive</span>
-                      {dead > 0 && <span className="text-red-400">{dead} dead</span>}
-                    </div>
+                  <div className="flex items-center mb-2 gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: player.color }} />
+                    <span className="text-sm font-semibold text-text-primary">{player.name}</span>
                   </div>
                   <div className="grid grid-cols-3 gap-1">
                     {partyMembers.map((member, slot) => (

@@ -9,7 +9,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/soul-links': 'Soul Links',
   '/party': 'Party Tracker',
   '/graveyard': 'Graveyard',
-  '/learnset': 'Learnset Search',
+  '/learnset': 'Pokemon Data',
   '/catch-calc': 'Catch Calculator',
   '/notes': 'Notes',
   '/settings': 'Settings',
