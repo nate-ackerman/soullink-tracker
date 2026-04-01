@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Map, Link2, Users, BookOpen,
-  Calculator, FileText, Settings, ChevronLeft, ChevronRight, Home
+  Calculator, FileText, Settings, ChevronLeft, ChevronRight, Home, Info
 } from 'lucide-react'
 import { cn } from '../../utils/cn'
 import { useAppStore } from '../../store/appStore'
@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { to: '/learnset', icon: BookOpen, label: 'Learnset & Stats' },
   { to: '/catch-calc', icon: Calculator, label: 'Catch Calc' },
   { to: '/notes', icon: FileText, label: 'Notes' },
+  { to: '/info', icon: Info, label: 'Info' },
   { to: '/settings', icon: Settings, label: 'Settings' }
 ]
 
