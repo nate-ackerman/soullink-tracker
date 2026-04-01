@@ -9,6 +9,7 @@ import { useAppStore } from '../store/appStore'
 import { useState, useMemo } from 'react'
 import { usePokemonByName, useMoveDetailsBatch, useMachineBatch, usePokemonSearch, usePokemonSpecies, useEvolutionChain, getPokemonTypes, extractMovesForGeneration, getVersionGroups } from '../api/pokeapi'
 import type { LearnsetMove, MoveData, ChainLink } from '../api/pokeapi'
+import { getTypeMatchups } from '../data/typeColors'
 
 interface EvoStage { name: string; level: number | null }
 
@@ -42,8 +43,44 @@ const LEARN_METHOD_TABS = [
   { id: 'level-up', label: 'Level Up' },
   { id: 'machine', label: 'TM/HM' },
   { id: 'egg', label: 'Egg' },
-  { id: 'tutor', label: 'Tutor' }
+  { id: 'tutor', label: 'Tutor' },
+  { id: 'matchups', label: 'Matchups' },
 ]
+
+// ── Type matchup matrix ───────────────────────────────────────────────────────
+
+const MATCHUP_TIERS = [
+  { mult: 4,    label: '4×',  classes: 'text-red-400    bg-red-500/10    border-red-500/30'    },
+  { mult: 2,    label: '2×',  classes: 'text-orange-400 bg-orange-500/10 border-orange-500/30' },
+  { mult: 0.5,  label: '½×',  classes: 'text-teal-400   bg-teal-500/10   border-teal-500/30'   },
+  { mult: 0.25, label: '¼×',  classes: 'text-blue-400   bg-blue-500/10   border-blue-500/30'   },
+  { mult: 0,    label: '0×',  classes: 'text-text-muted  bg-elevated      border-border'        },
+]
+
+function TypeMatchupMatrix({ types, generation }: { types: string[]; generation: number }) {
+  const matchups = useMemo(() => getTypeMatchups(types, generation), [types, generation])
+
+  return (
+    <div className="p-4 space-y-2">
+      {MATCHUP_TIERS.map(({ mult, label, classes }) => {
+        const attackTypes = Object.entries(matchups)
+          .filter(([, m]) => m === mult)
+          .map(([t]) => t)
+        if (attackTypes.length === 0) return null
+        return (
+          <div key={label} className="flex items-center gap-3">
+            <span className={`text-xs font-bold px-2 py-1 rounded border w-9 text-center shrink-0 ${classes}`}>
+              {label}
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {attackTypes.map((t) => <TypeBadge key={t} type={t} size="sm" />)}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 function MoveRow({ move, moveData, tmNumber, showTmColumn }: { move: LearnsetMove; moveData: MoveData | undefined; tmNumber?: string; showTmColumn?: boolean }) {
   return (
@@ -295,22 +332,34 @@ export function LearnsetSearch() {
             <p>Search for a Pokémon to see its learnset</p>
           </div>
         </div>
-      ) : movesLoading || pokemonLoading ? (
+      ) : pokemonLoading ? (
         <div className="flex items-center justify-center py-16">
           <Spinner size="lg" />
         </div>
       ) : (
         <div>
           <Tabs
-            tabs={LEARN_METHOD_TABS.map(t => ({
-              ...t,
-              label: `${t.label} (${movesByMethod[t.id]?.length ?? 0})`
-            }))}
+            tabs={LEARN_METHOD_TABS.map(t =>
+              t.id === 'matchups'
+                ? t
+                : { ...t, label: `${t.label} (${movesByMethod[t.id]?.length ?? 0})` }
+            )}
             value={activeTab}
             onValueChange={setActiveTab}
           >
             <TabContent value={activeTab}>
-              {currentMoves.length === 0 ? (
+              {activeTab === 'matchups' ? (
+                pokemonData ? (
+                  <TypeMatchupMatrix
+                    types={getPokemonTypes(pokemonData, generation)}
+                    generation={generation}
+                  />
+                ) : null
+              ) : movesLoading ? (
+                <div className="flex items-center justify-center py-16">
+                  <Spinner size="lg" />
+                </div>
+              ) : currentMoves.length === 0 ? (
                 <div className="text-center py-8 text-text-muted">
                   No moves via this method in {activeRun?.game ?? `Gen ${generation}`}
                 </div>
