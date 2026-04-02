@@ -7,8 +7,9 @@ import { Spinner } from '../components/ui/Spinner'
 import { Tabs, TabContent } from '../components/ui/Tabs'
 import { useAppStore } from '../store/appStore'
 import { useState, useMemo } from 'react'
-import { usePokemonByName, useMoveDetailsBatch, useMachineBatch, usePokemonSearch, usePokemonSpecies, useEvolutionChain, getPokemonTypes, extractMovesForGeneration, getVersionGroups } from '../api/pokeapi'
-import type { LearnsetMove, MoveData, ChainLink } from '../api/pokeapi'
+import { usePokemonByName, useMoveDetailsBatch, useMachineBatch, usePokemonSearch, usePokemonSpecies, usePokemonSpeciesBatch, useEvolutionChain, useAbilityBatch, getPokemonTypes, extractMovesForGeneration, getVersionGroups, GEN_NAME_TO_NUM, VERSION_GROUP_TO_GEN } from '../api/pokeapi'
+import type { LearnsetMove, MoveData, AbilityData, ChainLink } from '../api/pokeapi'
+import { Modal } from '../components/ui/Modal'
 import { getTypeMatchups } from '../data/typeColors'
 
 interface EvoStage { name: string; level: number | null }
@@ -25,7 +26,7 @@ function flattenChain(link: ChainLink, incomingLevel: number | null = null): Evo
 }
 
 function EvolutionStage({ name, isSelected, onClick }: { name: string; isSelected: boolean; onClick: () => void }) {
-  const { data } = usePokemonByName(name)
+  const { data, isLoading } = usePokemonByName(name)
   return (
     <button
       onClick={onClick}
@@ -33,7 +34,10 @@ function EvolutionStage({ name, isSelected, onClick }: { name: string; isSelecte
         isSelected ? 'bg-accent-teal/20 ring-1 ring-accent-teal' : 'hover:bg-elevated'
       }`}
     >
-      <PokemonSprite pokemonId={data?.id ?? null} pokemonName={name} size={36} />
+      {isLoading || !data?.id
+        ? <div className="rounded bg-elevated animate-pulse" style={{ width: 36, height: 36 }} />
+        : <PokemonSprite pokemonId={data.id} pokemonName={name} size={36} />
+      }
       <span className="text-[10px] capitalize text-text-secondary whitespace-nowrap">{name.replace(/-/g, ' ')}</span>
     </button>
   )
@@ -43,6 +47,7 @@ const LEARN_METHOD_TABS = [
   { id: 'level-up', label: 'Level Up' },
   { id: 'machine', label: 'TM/HM' },
   { id: 'tutor', label: 'Tutor' },
+  { id: 'abilities', label: 'Abilities' },
   { id: 'matchups', label: 'Matchups' },
 ]
 
@@ -81,9 +86,138 @@ function TypeMatchupMatrix({ types, generation }: { types: string[]; generation:
   )
 }
 
-function MoveRow({ move, moveData, tmNumber, showTmColumn }: { move: LearnsetMove; moveData: MoveData | undefined; tmNumber?: string; showTmColumn?: boolean }) {
+function AbilityCard({ name, isHidden, data, versionGroups, generation }: {
+  name: string
+  isHidden: boolean
+  data: AbilityData | undefined
+  versionGroups: string[]
+  generation: number
+}) {
+  const { flavorText, fullEffect } = useMemo(() => {
+    if (!data) return { flavorText: null, fullEffect: null }
+
+    const flavor = data.flavor_text_entries.find(
+      e => e.language.name === 'en' && versionGroups.includes(e.version_group.name)
+    )?.flavor_text ?? null
+
+    // Find the most specific effect_changes entry that covers the current generation.
+    // Each entry describes how the ability behaved up to and including that version group.
+    // We want the entry with the smallest gen that is still >= currentGeneration.
+    const applicableChange = data.effect_changes
+      .map(c => ({ gen: VERSION_GROUP_TO_GEN[c.version_group.name] ?? 99, c }))
+      .filter(({ gen }) => gen >= generation)
+      .sort((a, b) => a.gen - b.gen)[0]?.c
+
+    const effect = (
+      applicableChange?.effect_entries.find(e => e.language.name === 'en')?.effect
+      ?? data.effect_entries.find(e => e.language.name === 'en')?.effect
+      ?? data.effect_entries[0]?.effect
+      ?? null
+    )
+
+    return { flavorText: flavor, fullEffect: effect }
+  }, [data, versionGroups, generation])
+
   return (
-    <tr className="border-b border-border hover:bg-elevated/50 transition-colors">
+    <div className="p-4 border border-border rounded-lg space-y-2">
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-semibold text-text-primary capitalize">
+          {name.replace(/-/g, ' ')}
+        </span>
+        {isHidden && (
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-900/30 text-purple-400 border border-purple-500/30">
+            Hidden
+          </span>
+        )}
+      </div>
+      {data ? (
+        <>
+          {flavorText && (
+            <p className="text-xs text-text-secondary leading-relaxed">{flavorText}</p>
+          )}
+          {fullEffect ? (
+            <p className={`text-xs leading-relaxed ${flavorText ? 'text-text-muted' : 'text-text-secondary'}`}>
+              {fullEffect}
+            </p>
+          ) : !flavorText && (
+            <p className="text-xs text-text-muted italic">No description available.</p>
+          )}
+        </>
+      ) : (
+        <div className="space-y-1.5">
+          <div className="h-3 bg-elevated rounded animate-pulse w-full" />
+          <div className="h-3 bg-elevated rounded animate-pulse w-4/5" />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MoveDetailModal({ moveName, moveData, open, onClose, generation }: { moveName: string; moveData: MoveData | undefined; open: boolean; onClose: () => void; generation: number }) {
+  const effectText = useMemo(() => {
+    if (!moveData) return null
+    const applicableChange = moveData.effect_changes
+      ?.map(c => ({ gen: VERSION_GROUP_TO_GEN[c.version_group.name] ?? 99, c }))
+      .filter(({ gen }) => gen >= generation)
+      .sort((a, b) => a.gen - b.gen)[0]?.c
+    return (
+      applicableChange?.effect_entries.find(e => e.language.name === 'en')?.effect
+      ?? moveData.effect_entries.find((e) => e.language.name === 'en')?.effect
+      ?? moveData.effect_entries[0]?.effect
+      ?? null
+    )
+  }, [moveData, generation])
+
+  const displayEffect = effectText && moveData?.effect_chance != null
+    ? effectText.replace(/\$effect_chance/g, String(moveData.effect_chance))
+    : effectText
+
+  return (
+    <Modal open={open} onOpenChange={(o) => !o && onClose()} title={moveName.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())} size="sm">
+      {moveData ? (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            <TypeBadge type={moveData.type.name} size="sm" />
+            <span className={`text-xs px-1.5 py-0.5 rounded capitalize ${
+              moveData.damage_class.name === 'physical'
+                ? 'bg-red-900/30 text-red-400'
+                : moveData.damage_class.name === 'special'
+                ? 'bg-blue-900/30 text-blue-400'
+                : 'bg-gray-700/30 text-gray-400'
+            }`}>
+              {moveData.damage_class.name}
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <div className="bg-elevated rounded p-2">
+              <p className="text-sm font-bold text-text-primary">{moveData.power ?? '—'}</p>
+              <p className="text-[10px] text-text-muted uppercase">Power</p>
+            </div>
+            <div className="bg-elevated rounded p-2">
+              <p className="text-sm font-bold text-text-primary">{moveData.accuracy ? `${moveData.accuracy}%` : '—'}</p>
+              <p className="text-[10px] text-text-muted uppercase">Accuracy</p>
+            </div>
+            <div className="bg-elevated rounded p-2">
+              <p className="text-sm font-bold text-text-primary">{moveData.pp ?? '—'}</p>
+              <p className="text-[10px] text-text-muted uppercase">PP</p>
+            </div>
+          </div>
+          {displayEffect && (
+            <p className="text-sm text-text-secondary leading-relaxed">{displayEffect}</p>
+          )}
+        </div>
+      ) : (
+        <div className="flex items-center justify-center py-8">
+          <Spinner size="md" />
+        </div>
+      )}
+    </Modal>
+  )
+}
+
+function MoveRow({ move, moveData, tmNumber, showTmColumn, onClick }: { move: LearnsetMove; moveData: MoveData | undefined; tmNumber?: string; showTmColumn?: boolean; onClick: () => void }) {
+  return (
+    <tr onClick={onClick} className="border-b border-border hover:bg-elevated/50 transition-colors cursor-pointer">
       {showTmColumn ? (
         <td className="px-3 py-2 text-xs font-medium text-text-secondary w-16">
           {tmNumber ?? <span className="text-text-muted">—</span>}
@@ -138,6 +272,7 @@ export function LearnsetSearch() {
   const [showDropdown, setShowDropdown] = useState(false)
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
   const [activeTab, setActiveTab] = useState('level-up')
+  const [selectedMoveName, setSelectedMoveName] = useState<string | null>(null)
 
   const generation = activeRun?.generation ?? 3
   const gameId = activeRun?.game ?? ''
@@ -162,6 +297,18 @@ export function LearnsetSearch() {
   const allMoveNames = useMemo(() => [...new Set(Object.values(movesByMethod).flat().map((m) => m.name))], [movesByMethod])
   const moveDetailsMap = useMoveDetailsBatch(allMoveNames)
   const movesLoading = allMoveNames.length > 0 && moveDetailsMap.size === 0
+
+  // Abilities — filtered by generation:
+  //   Gen 1–2: no abilities at all
+  //   Gen 3–4: regular abilities only (hidden ability mechanic added in Gen 5)
+  //   Gen 5+:  all abilities
+  const abilityEntries = useMemo(() => {
+    if (!pokemonData || generation <= 2) return []
+    const all = pokemonData.abilities
+    return generation <= 4 ? all.filter(a => !a.is_hidden) : all
+  }, [pokemonData, generation])
+  const abilityNames = useMemo(() => abilityEntries.map(a => a.ability.name), [abilityEntries])
+  const abilityDataMap = useAbilityBatch(abilityNames)
 
   // For TM/HM tab: find each move's machine URL for the current version group, then batch-fetch
   const versionGroups = useMemo(() => getVersionGroups(gameId, generation), [gameId, generation])
@@ -189,7 +336,17 @@ export function LearnsetSearch() {
 
   const { data: speciesData } = usePokemonSpecies(pokemonData?.id ?? 0)
   const { data: chainData } = useEvolutionChain(speciesData?.evolution_chain?.url ?? '')
-  const evoLine = chainData ? flattenChain(chainData.chain) : []
+  const evoLineRaw = chainData ? flattenChain(chainData.chain) : []
+
+  // Fetch species data for each stage to check which generation it was introduced in
+  const evoSpeciesMap = usePokemonSpeciesBatch(evoLineRaw.map(s => s.name))
+
+  // Only show stages that exist in the current generation
+  const evoLine = evoLineRaw.filter(stage => {
+    const species = evoSpeciesMap.get(stage.name)
+    if (!species) return true  // still loading — keep it in so it doesn't flicker out
+    return (GEN_NAME_TO_NUM[species.generation.name] ?? 99) <= generation
+  })
 
   const isMachineTab = activeTab === 'machine'
 
@@ -333,11 +490,11 @@ export function LearnsetSearch() {
       ) : (
         <div>
           <Tabs
-            tabs={LEARN_METHOD_TABS.map(t =>
-              t.id === 'matchups'
-                ? t
-                : { ...t, label: `${t.label} (${movesByMethod[t.id]?.length ?? 0})` }
-            )}
+            tabs={LEARN_METHOD_TABS.map(t => {
+              if (t.id === 'matchups') return t
+              if (t.id === 'abilities') return { ...t, label: `${t.label} (${abilityEntries.length})` }
+              return { ...t, label: `${t.label} (${movesByMethod[t.id]?.length ?? 0})` }
+            })}
             value={activeTab}
             onValueChange={setActiveTab}
           >
@@ -349,6 +506,25 @@ export function LearnsetSearch() {
                     generation={generation}
                   />
                 ) : null
+              ) : activeTab === 'abilities' ? (
+                generation <= 2 ? (
+                  <div className="text-center py-8 text-text-muted text-sm">
+                    Abilities were not present in Generation {generation}.
+                  </div>
+                ) : (
+                  <div className="p-4 space-y-3">
+                    {abilityEntries.map(entry => (
+                      <AbilityCard
+                        key={entry.ability.name}
+                        name={entry.ability.name}
+                        isHidden={entry.is_hidden}
+                        data={abilityDataMap.get(entry.ability.name)}
+                        versionGroups={versionGroups}
+                        generation={generation}
+                      />
+                    ))}
+                  </div>
+                )
               ) : movesLoading ? (
                 <div className="flex items-center justify-center py-16">
                   <Spinner size="lg" />
@@ -380,6 +556,7 @@ export function LearnsetSearch() {
                         moveData={moveDetailsMap.get(move.name)}
                         tmNumber={tmNumberMap.get(move.name)}
                         showTmColumn={isMachineTab}
+                        onClick={() => setSelectedMoveName(move.name)}
                       />
                     ))}
                   </tbody>
@@ -388,6 +565,16 @@ export function LearnsetSearch() {
             </TabContent>
           </Tabs>
         </div>
+      )}
+
+      {selectedMoveName && (
+        <MoveDetailModal
+          moveName={selectedMoveName}
+          moveData={moveDetailsMap.get(selectedMoveName)}
+          open={!!selectedMoveName}
+          onClose={() => setSelectedMoveName(null)}
+          generation={generation}
+        />
       )}
     </div>
   )

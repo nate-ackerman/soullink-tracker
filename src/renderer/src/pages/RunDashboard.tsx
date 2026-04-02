@@ -16,28 +16,47 @@ import type { Catch, SoulLink } from '../types'
 
 // ── Trainer sprite ────────────────────────────────────────────────────────────
 
-function trainerSpriteKey(name: string): string {
-  // For "A & B" or "A / B" names, use just the first person's sprite
-  const primary = name.split(/[&/]/)[0]
-  return primary
+const TRAINER_SPRITE_OVERRIDES: Record<string, string> = {
+  'Kimono Girls': 'kimonogirl',
+  'Jessie & James': 'jessiejames-gen1',
+  'Lorelei': 'lorelei-gen3',
+  'Agatha': 'agatha-gen3',
+  'Maxie': 'maxie-gen3',
+  'Archie': 'archie-gen3',
+  'Phoebe': 'phoebe-gen3',
+  'Drake': 'drake-gen3',
+}
+
+function getSpriteCandidates(name: string): string[] {
+  // Check override with full name first, then with just the primary (before & or /)
+  if (TRAINER_SPRITE_OVERRIDES[name]) return [TRAINER_SPRITE_OVERRIDES[name]]
+  const primaryRaw = name.split(/[&/]/)[0].trim()
+  if (TRAINER_SPRITE_OVERRIDES[primaryRaw]) return [TRAINER_SPRITE_OVERRIDES[primaryRaw]]
+  const primary = primaryRaw
     .toLowerCase()
     .replace(/\./g, '')
     .replace(/[^a-z0-9 ]/g, '')
     .trim()
-    .replace(/\s+/g, '-')
+  const words = primary.split(/\s+/).filter(Boolean)
+  if (words.length <= 1) return words
+  // 1. all special chars stripped with no separator (e.g. "ltsurge")
+  // 2. full hyphenated name (e.g. "lt-surge")
+  // 3. each word individually (e.g. "lt", "surge")
+  return [...new Set([words.join(''), words.join('-'), ...words])]
 }
 
 function TrainerSprite({ name, size = 40 }: { name: string; size?: number }) {
-  const [visible, setVisible] = useState(true)
-  if (!visible) return null
+  const candidates = useMemo(() => getSpriteCandidates(name), [name])
+  const [index, setIndex] = useState(0)
+  if (index >= candidates.length) return null
   return (
     <img
-      src={`https://play.pokemonshowdown.com/sprites/trainers/${trainerSpriteKey(name)}.png`}
+      src={`https://play.pokemonshowdown.com/sprites/trainers/${candidates[index]}.png`}
       alt={name}
       width={size}
       height={size}
       style={{ imageRendering: 'pixelated', objectFit: 'contain' }}
-      onError={() => setVisible(false)}
+      onError={() => setIndex((i) => i + 1)}
     />
   )
 }
@@ -671,43 +690,56 @@ export function RunDashboard() {
         {/* Right column: parties */}
         <div className="space-y-3">
           <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Parties</p>
-          {players.map((player) => {
-            const playerSlots = partySlots
-              .filter((ps) => ps.player_id === player.id)
-              .sort((a, b) => a.slot - b.slot)
-            const partyMembers = [0, 1, 2, 3, 4, 5].map((slot) => {
-              const ps = playerSlots.find((s) => s.slot === slot)
-              return ps ? catches.find((c) => c.id === ps.catch_id) : undefined
-            })
-            return (
-              <Card key={player.id} className="overflow-hidden">
-                <div className="h-1" style={{ backgroundColor: player.color }} />
-                <CardContent className="pt-3 pb-3">
-                  <div className="flex items-center mb-2 gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: player.color }} />
-                    <span className="text-sm font-semibold text-text-primary">{player.name}</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-1">
-                    {partyMembers.map((member, slot) => (
-                      member ? (
-                        <PartyMemberCell key={slot} member={member} levelCap={levelCap} />
-                      ) : (
-                        <div key={slot} className="aspect-square rounded bg-elevated border border-border flex items-center justify-center">
-                          <span className="text-[10px] text-text-muted opacity-40">{slot + 1}</span>
+          {(() => {
+            const partyCatchIds = new Set(partySlots.map((ps) => ps.catch_id))
+            const inPartyLinks = activeLinks
+              .filter((sl) => sl.catch_ids.some((cid) => partyCatchIds.has(cid)))
+              .sort((a, b) => {
+                const minSlot = (link: SoulLink) =>
+                  Math.min(...link.catch_ids.map((cid) => partySlots.find((ps) => ps.catch_id === cid)?.slot ?? 99))
+                return minSlot(a) - minSlot(b)
+              })
+            return players.map((player) => {
+              const partyMembers = inPartyLinks.map((link) => {
+                const catchId = link.catch_ids.find((cid) => catches.find((x) => x.id === cid)?.player_id === player.id)
+                return catchId ? catches.find((c) => c.id === catchId) : undefined
+              })
+              const emptySlots = Math.max(0, 6 - partyMembers.length)
+              return (
+                <Card key={player.id} className="overflow-hidden">
+                  <div className="h-1" style={{ backgroundColor: player.color }} />
+                  <CardContent className="pt-3 pb-3">
+                    <div className="flex items-center mb-2 gap-1.5">
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: player.color }} />
+                      <span className="text-sm font-semibold text-text-primary">{player.name}</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-1">
+                      {partyMembers.map((member, i) => (
+                        member ? (
+                          <PartyMemberCell key={i} member={member} levelCap={levelCap} />
+                        ) : (
+                          <div key={i} className="aspect-square rounded bg-elevated border border-border flex items-center justify-center">
+                            <span className="text-[10px] text-text-muted opacity-40">—</span>
+                          </div>
+                        )
+                      ))}
+                      {Array.from({ length: emptySlots }, (_, i) => (
+                        <div key={`empty-${i}`} className="aspect-square rounded bg-elevated border border-border flex items-center justify-center">
+                          <span className="text-[10px] text-text-muted opacity-40">{partyMembers.length + i + 1}</span>
                         </div>
-                      )
-                    ))}
-                  </div>
-                  <button
-                    onClick={() => navigate('/party')}
-                    className="w-full mt-2 text-[10px] text-text-muted hover:text-accent-teal transition-colors text-center"
-                  >
-                    Manage party →
-                  </button>
-                </CardContent>
-              </Card>
-            )
-          })}
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => navigate('/party')}
+                      className="w-full mt-2 text-[10px] text-text-muted hover:text-accent-teal transition-colors text-center"
+                    >
+                      Manage party →
+                    </button>
+                  </CardContent>
+                </Card>
+              )
+            })
+          })()}
         </div>
       </motion.div>
 

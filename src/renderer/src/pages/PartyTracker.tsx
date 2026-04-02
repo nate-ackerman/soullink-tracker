@@ -358,6 +358,7 @@ function ComboSlotCard({ catch_, isNew, evolvedTo }: {
   isNew: boolean
   evolvedTo?: PokemonData
 }) {
+  const navigate = useNavigate()
   const CARD_H = 150
 
   if (!catch_) {
@@ -376,7 +377,8 @@ function ComboSlotCard({ catch_, isNew, evolvedTo }: {
 
   return (
     <div
-      className={`rounded-lg border bg-card px-2 pt-3 pb-2 flex flex-col items-center gap-1 overflow-hidden ${
+      onClick={() => displayName && navigate('/learnset', { state: { pokemon: displayName } })}
+      className={`rounded-lg border bg-card px-2 pt-3 pb-2 flex flex-col items-center gap-1 overflow-hidden cursor-pointer hover:opacity-75 transition-opacity ${
         isNew ? 'border-accent-teal/50' : 'border-border opacity-60'
       }`}
       style={{ height: CARD_H }}
@@ -1214,13 +1216,10 @@ function BestCombosSection({
     <div className="space-y-3">
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            Top Party Combos
-            <span className="text-xs text-text-muted font-normal">
-              {inPartyLinks.length > 0
-                ? `(best additions for your ${inPartyLinks.length}-link party)`
-                : hasTypeLimit ? '(valid combos by total BST)' : '(by total BST)'}
-            </span>
+          <CardTitle>
+            {inPartyLinks.length > 0
+              ? `Best Additions for Your ${inPartyLinks.length}-Link Party`
+              : hasTypeLimit ? 'Valid Combos by Total BST' : 'Top Combos by Total BST'}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -1236,10 +1235,7 @@ function BestCombosSection({
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            Top Party Combos
-            <span className="text-xs text-text-muted font-normal">(by weighted avg — rewards fuller teams)</span>
-          </CardTitle>
+          <CardTitle>Top Combos by Weighted Average</CardTitle>
         </CardHeader>
         <CardContent>
           {loadingOrEmpty(topWeightedCombos.length === 0) ?? (
@@ -1254,10 +1250,7 @@ function BestCombosSection({
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            Top Party Combos
-            <span className="text-xs text-text-muted font-normal">(strengthen the weakest player)</span>
-          </CardTitle>
+          <CardTitle>Strengthen the Weakest Player</CardTitle>
         </CardHeader>
         <CardContent>
           {loadingOrEmpty(topMinWeightedCombos.length === 0) ?? (
@@ -1350,28 +1343,47 @@ function PartySnapshotRows({ snapshot, catches, players }: {
 
 // ── Trainer sprite (shared with Dashboard) ────────────────────────────────────
 
-function trainerSpriteKey(name: string): string {
-  // For "A & B" or "A / B" names, use just the first person's sprite
-  const primary = name.split(/[&/]/)[0]
-  return primary
+const TRAINER_SPRITE_OVERRIDES: Record<string, string> = {
+  'Kimono Girls': 'kimonogirl',
+  'Jessie & James': 'jessiejames-gen1',
+  'Lorelei': 'lorelei-gen3',
+  'Agatha': 'agatha-gen3',
+  'Maxie': 'maxie-gen3',
+  'Archie': 'archie-gen3',
+  'Phoebe': 'phoebe-gen3',
+  'Drake': 'drake-gen3',
+}
+
+function getSpriteCandidates(name: string): string[] {
+  // Check override with full name first, then with just the primary (before & or /)
+  if (TRAINER_SPRITE_OVERRIDES[name]) return [TRAINER_SPRITE_OVERRIDES[name]]
+  const primaryRaw = name.split(/[&/]/)[0].trim()
+  if (TRAINER_SPRITE_OVERRIDES[primaryRaw]) return [TRAINER_SPRITE_OVERRIDES[primaryRaw]]
+  const primary = primaryRaw
     .toLowerCase()
     .replace(/\./g, '')
     .replace(/[^a-z0-9 ]/g, '')
     .trim()
-    .replace(/\s+/g, '-')
+  const words = primary.split(/\s+/).filter(Boolean)
+  if (words.length <= 1) return words
+  // 1. all special chars stripped with no separator (e.g. "ltsurge")
+  // 2. full hyphenated name (e.g. "lt-surge")
+  // 3. each word individually (e.g. "lt", "surge")
+  return [...new Set([words.join(''), words.join('-'), ...words])]
 }
 
 function TrainerSprite({ name, size = 40 }: { name: string; size?: number }) {
-  const [visible, setVisible] = useState(true)
-  if (!visible) return null
+  const candidates = useMemo(() => getSpriteCandidates(name), [name])
+  const [index, setIndex] = useState(0)
+  if (index >= candidates.length) return null
   return (
     <img
-      src={`https://play.pokemonshowdown.com/sprites/trainers/${trainerSpriteKey(name)}.png`}
+      src={`https://play.pokemonshowdown.com/sprites/trainers/${candidates[index]}.png`}
       alt={name}
       width={size}
       height={size}
       style={{ imageRendering: 'pixelated', objectFit: 'contain' }}
-      onError={() => setVisible(false)}
+      onError={() => setIndex((i) => i + 1)}
     />
   )
 }

@@ -1,4 +1,4 @@
-import { useQuery, useQueries } from '@tanstack/react-query'
+import { useQuery, useQueries, type QueryClient } from '@tanstack/react-query'
 import { getTypeMatchups } from '../data/typeColors'
 
 const BASE_URL = 'https://pokeapi.co/api/v2'
@@ -17,7 +17,7 @@ async function fetchJson<T>(url: string): Promise<T> {
   return res.json()
 }
 
-const GEN_NAME_TO_NUM: Record<string, number> = {
+export const GEN_NAME_TO_NUM: Record<string, number> = {
   'generation-i': 1, 'generation-ii': 2, 'generation-iii': 3,
   'generation-iv': 4, 'generation-v': 5, 'generation-vi': 6,
   'generation-vii': 7, 'generation-viii': 8, 'generation-ix': 9
@@ -51,6 +51,18 @@ export interface PokemonData {
   weight: number
   base_experience: number
   species: { name: string; url: string }
+  abilities: { ability: { name: string; url: string }; is_hidden: boolean; slot: number }[]
+}
+
+export interface AbilityData {
+  id: number
+  name: string
+  effect_entries: { effect: string; short_effect: string; language: { name: string } }[]
+  effect_changes: {
+    version_group: { name: string }
+    effect_entries: { effect: string; language: { name: string } }[]
+  }[]
+  flavor_text_entries: { flavor_text: string; language: { name: string }; version_group: { name: string } }[]
 }
 
 // Returns the types a Pokémon had in a given generation, using past_types when applicable.
@@ -72,6 +84,7 @@ export interface PokemonSpeciesData {
   base_happiness: number
   is_legendary: boolean
   is_mythical: boolean
+  generation: { name: string }
   flavor_text_entries: { flavor_text: string; language: { name: string } }[]
   genera: { genus: string; language: { name: string } }[]
   evolution_chain: { url: string }
@@ -110,7 +123,12 @@ export interface MoveData {
   power: number | null
   accuracy: number | null
   pp: number | null
-  effect_entries: { effect: string; short_effect: string }[]
+  effect_chance: number | null
+  effect_entries: { effect: string; short_effect: string; language: { name: string } }[]
+  effect_changes: {
+    version_group: { name: string }
+    effect_entries: { effect: string; language: { name: string } }[]
+  }[]
   machines: { machine: { url: string }; version_group: { name: string } }[]
 }
 
@@ -130,6 +148,15 @@ export function usePokemonByName(name: string) {
     enabled: !!name && name.length > 0,
     staleTime: Infinity,
     retry: 1
+  })
+}
+
+// Prefetch a pokemon by ID into an existing queryClient (for background preloading)
+export function prefetchPokemonById(queryClient: QueryClient, id: number): Promise<void> {
+  return queryClient.prefetchQuery({
+    queryKey: ['pokemon', id],
+    queryFn: () => fetchJson<PokemonData>(`${BASE_URL}/pokemon/${id}`),
+    staleTime: Infinity,
   })
 }
 
@@ -173,6 +200,24 @@ export function usePokemonSpecies(id: number) {
     staleTime: Infinity,
     retry: 1
   })
+}
+
+// Batch-fetch species by name (PokeAPI accepts name or id). Returns a map of name → data.
+export function usePokemonSpeciesBatch(names: string[]): Map<string, PokemonSpeciesData> {
+  const results = useQueries({
+    queries: names.map((name) => ({
+      queryKey: ['pokemon-species-name', name],
+      queryFn: () => fetchJson<PokemonSpeciesData>(`${BASE_URL}/pokemon-species/${name}`),
+      staleTime: Infinity,
+      enabled: !!name,
+    })),
+  })
+  const map = new Map<string, PokemonSpeciesData>()
+  names.forEach((name, i) => {
+    const data = results[i]?.data
+    if (data) map.set(name, data)
+  })
+  return map
 }
 
 export interface LearnsetMove {
@@ -220,6 +265,23 @@ const GEN_VERSION_GROUPS: Record<number, string[]> = {
   4: ['diamond-pearl', 'platinum', 'heartgold-soulsilver'],
   5: ['black-white', 'black-2-white-2']
 }
+
+// Inverted map: version group name → generation number.
+// Covers gen 6–9 too so effect_changes entries from later gens can be correctly ordered.
+export const VERSION_GROUP_TO_GEN: Record<string, number> = (() => {
+  const map: Record<string, number> = {}
+  const all: Record<number, string[]> = {
+    ...GEN_VERSION_GROUPS,
+    6: ['x-y', 'omega-ruby-alpha-sapphire'],
+    7: ['sun-moon', 'ultra-sun-ultra-moon', 'lets-go-pikachu-lets-go-eevee'],
+    8: ['sword-shield', 'brilliant-diamond-and-shining-pearl', 'legends-arceus'],
+    9: ['scarlet-violet'],
+  }
+  for (const [gen, groups] of Object.entries(all)) {
+    for (const vg of groups) map[vg] = Number(gen)
+  }
+  return map
+})()
 
 export function getVersionGroups(gameId: string, generation: number): string[] {
   return GAME_VERSION_GROUPS[gameId] ?? GEN_VERSION_GROUPS[generation] ?? []
@@ -291,6 +353,23 @@ export function useMoveDetailsBatch(moveNames: string[]): Map<string, MoveData> 
   })
   const map = new Map<string, MoveData>()
   moveNames.forEach((name, i) => {
+    const data = results[i]?.data
+    if (data) map.set(name, data)
+  })
+  return map
+}
+
+export function useAbilityBatch(abilityNames: string[]): Map<string, AbilityData> {
+  const results = useQueries({
+    queries: abilityNames.map((name) => ({
+      queryKey: ['ability', name],
+      queryFn: () => fetchJson<AbilityData>(`${BASE_URL}/ability/${name}`),
+      staleTime: Infinity,
+      enabled: !!name,
+    })),
+  })
+  const map = new Map<string, AbilityData>()
+  abilityNames.forEach((name, i) => {
     const data = results[i]?.data
     if (data) map.set(name, data)
   })
