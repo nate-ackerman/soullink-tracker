@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useSessionState } from '../hooks/useSessionState'
 import { Search, Plus, Link2, Skull, XCircle, CheckCircle, Clock, Pencil, RotateCcw, X, Settings2, Lock } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { Button } from '../components/ui/Button'
@@ -414,8 +415,8 @@ export function RouteTracker() {
     optimisticAddCatch, optimisticUpdateCatch, optimisticUpdateNickname,
   } = useAppStore()
   const api = useApi()
-  const [selectedRoute, setSelectedRoute] = useState<string | null>(null)
-  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedRoute, setSelectedRoute] = useSessionState<string | null>('routes_selectedRoute', null)
+  const [searchQuery, setSearchQuery] = useSessionState('routes_search', '')
   const [logModal, setLogModal] = useState<{ open: boolean; playerId: string }>({ open: false, playerId: '' })
   const [killModal, setKillModal] = useState<{ open: boolean; catch_: Catch | null }>({ open: false, catch_: null })
   const [failModal, setFailModal] = useState<{ open: boolean; playerId: string }>({ open: false, playerId: '' })

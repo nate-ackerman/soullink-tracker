@@ -6,7 +6,8 @@ import { PokemonSprite } from '../components/pokemon/PokemonSprite'
 import { Spinner } from '../components/ui/Spinner'
 import { Tabs, TabContent } from '../components/ui/Tabs'
 import { useAppStore } from '../store/appStore'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+import { useSessionState } from '../hooks/useSessionState'
 import { usePokemonByName, useMoveDetailsBatch, useMachineBatch, usePokemonSearch, usePokemonSpecies, usePokemonSpeciesBatch, useEvolutionChain, useAbilityBatch, getPokemonTypes, extractMovesForGeneration, getVersionGroups, GEN_NAME_TO_NUM, VERSION_GROUP_TO_GEN } from '../api/pokeapi'
 import type { LearnsetMove, MoveData, AbilityData, ChainLink } from '../api/pokeapi'
 import { Modal } from '../components/ui/Modal'
@@ -267,12 +268,20 @@ export function LearnsetSearch() {
   const { activeRun } = useAppStore()
   const location = useLocation()
   const prefill = (location.state as { pokemon?: string } | null)?.pokemon ?? ''
-  const [searchQuery, setSearchQuery] = useState(prefill)
-  const [selectedPokemon, setSelectedPokemon] = useState(prefill)
+  const [searchQuery, setSearchQuery] = useSessionState('learnset_query', prefill)
+  const [selectedPokemon, setSelectedPokemon] = useSessionState('learnset_pokemon', prefill)
   const [showDropdown, setShowDropdown] = useState(false)
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
-  const [activeTab, setActiveTab] = useState('level-up')
+  const [activeTab, setActiveTab] = useSessionState('learnset_tab', 'level-up')
   const [selectedMoveName, setSelectedMoveName] = useState<string | null>(null)
+
+  // If another page navigates here with a specific pokemon, override session
+  useEffect(() => {
+    if (prefill) {
+      setSearchQuery(prefill)
+      setSelectedPokemon(prefill)
+    }
+  }, [prefill])
 
   const generation = activeRun?.generation ?? 3
   const gameId = activeRun?.game ?? ''

@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useSessionState } from '../hooks/useSessionState'
 import { useNavigate } from 'react-router-dom'
 import { Plus, X, Link2, AlertTriangle } from 'lucide-react'
 
@@ -1573,7 +1574,7 @@ export function PartyTracker() {
   const [pickerOpen, setPickerOpen] = useState(false)
   const [saveModalOpen, setSaveModalOpen] = useState(false)
   const [saveName, setSaveName] = useState('')
-  const [activeTab, setActiveTab] = useState('party')
+  const [activeTab, setActiveTab] = useSessionState('party_tab', 'party')
 
   if (!activeRun) return <div className="p-6 text-text-muted">No active run</div>
 
