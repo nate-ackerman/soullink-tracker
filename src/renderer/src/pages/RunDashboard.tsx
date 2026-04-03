@@ -489,8 +489,8 @@ export function RunDashboard() {
         className="grid grid-cols-2 gap-3"
       >
         {[
-          { label: 'Active Links', value: activeLinks.length, color: '#38b2ac' },
-          { label: 'Broken Links', value: brokenLinks, color: brokenLinks > 0 ? '#f97316' : '#6b7280' },
+          { label: players.length === 1 ? 'Active Pokémon' : 'Active Links', value: activeLinks.length, color: '#38b2ac' },
+          { label: players.length === 1 ? 'Lost Pokémon' : 'Broken Links', value: brokenLinks, color: brokenLinks > 0 ? '#f97316' : '#6b7280' },
         ].map(({ label, value, color }) => (
           <Card key={label}>
             <CardContent className="py-3 text-center">

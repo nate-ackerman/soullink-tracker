@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from 'react'
 import { useQueries } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Link2, Skull, CheckCircle, X, Pencil, Check, Search } from 'lucide-react'
+import { Link2, Disc, Skull, CheckCircle, X, Pencil, Check, Search } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { Card, CardContent } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
@@ -117,10 +117,12 @@ function LinkRow({ link, catches, players, routeName, levelCap, onMarkDeath, onR
         <CardContent className="py-3">
           {/* Header */}
           <div className="flex items-center gap-2 mb-3">
-            <Link2 className={`w-3.5 h-3.5 ${isBroken ? 'text-red-400' : 'text-accent-teal'}`} />
+            {players.length === 1
+              ? <Disc className={`w-3.5 h-3.5 ${isBroken ? 'text-red-400' : 'text-accent-teal'}`} />
+              : <Link2 className={`w-3.5 h-3.5 ${isBroken ? 'text-red-400' : 'text-accent-teal'}`} />}
             <span className="text-xs font-medium text-text-secondary capitalize">{routeName}</span>
             {isBroken ? (
-              <Badge variant="danger">Broken</Badge>
+              <Badge variant="danger">{players.length === 1 ? 'Lost' : 'Broken'}</Badge>
             ) : (
               <Badge variant="success">Active</Badge>
             )}
@@ -423,7 +425,9 @@ export function SoulLinkView() {
       {/* Stats */}
       <div className="flex gap-3 flex-wrap">
         <div className="bg-card border border-border rounded-lg px-4 py-2 flex items-center gap-2">
-          <Link2 className="w-4 h-4 text-accent-teal" />
+          {players.length === 1
+            ? <Disc className="w-4 h-4 text-accent-teal" />
+            : <Link2 className="w-4 h-4 text-accent-teal" />}
           <span className="text-sm font-medium text-text-primary">{stats.total}</span>
           <span className="text-xs text-text-muted">{players.length === 1 ? 'Total Caught' : 'Total Links'}</span>
         </div>
@@ -435,7 +439,7 @@ export function SoulLinkView() {
         <div className="bg-card border border-border rounded-lg px-4 py-2 flex items-center gap-2">
           <Skull className="w-4 h-4 text-red-400" />
           <span className="text-sm font-medium text-text-primary">{stats.broken}</span>
-          <span className="text-xs text-text-muted">Broken</span>
+          <span className="text-xs text-text-muted">{players.length === 1 ? 'Lost' : 'Broken'}</span>
         </div>
       </div>
 
@@ -452,7 +456,7 @@ export function SoulLinkView() {
                 : 'border-transparent text-text-muted hover:text-text-secondary'
             }`}
           >
-            {f === 'all' ? 'All' : f === 'active' ? 'Active' : 'Broken'}
+            {f === 'all' ? 'All' : f === 'active' ? 'Active' : (players.length === 1 ? 'Lost' : 'Broken')}
             <span className="ml-1.5 opacity-60">
               {f === 'all' ? stats.total : f === 'active' ? stats.active : stats.broken}
             </span>

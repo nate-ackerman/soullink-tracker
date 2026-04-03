@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  LayoutDashboard, Map, Link2, Users, BookOpen,
+  LayoutDashboard, Map, Link2, Disc, Users, BookOpen,
   Calculator, FileText, Settings, ChevronLeft, ChevronRight, Home, Info
 } from 'lucide-react'
 import { cn } from '../../utils/cn'
@@ -13,7 +13,7 @@ export function Sidebar() {
   const NAV_ITEMS = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/routes', icon: Map, label: 'Encounters' },
-    { to: '/soul-links', icon: Link2, label: isSolo ? 'Pokémon' : 'Soul Links' },
+    { to: '/soul-links', icon: isSolo ? Disc : Link2, label: isSolo ? 'Pokémon' : 'Soul Links' },
     { to: '/party', icon: Users, label: 'Party' },
     { to: '/learnset', icon: BookOpen, label: 'Pokemon Data' },
     { to: '/catch-calc', icon: Calculator, label: 'Catch Calc' },

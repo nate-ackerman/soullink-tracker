@@ -55,7 +55,7 @@ function SliderRow({
 }
 
 export function Settings() {
-  const { activeRun, activeRunId, loadRunData } = useAppStore()
+  const { activeRun, activeRunId, loadRunData, players } = useAppStore()
   const api = useApi()
   const [runName, setRunName] = useState(activeRun?.name ?? '')
   const [maxSharedTypeCount, setMaxSharedTypeCount] = useState(
@@ -166,18 +166,21 @@ export function Settings() {
           <CardTitle>Difficulty Modifiers</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          <SliderRow
-            label="Max of any single type across all parties"
-            description="Limits how many Pokémon of the same type can be in all players' active parties combined. Warnings appear on the Party page and invalid links are blocked in the picker."
-            value={maxSharedTypeCount}
-            min={0}
-            max={6}
-            step={1}
-            onChange={handleMaxSharedChange}
-            displayValue={typeCountDisplay}
-          />
-
-          <div className="border-t border-border/50" />
+          {players.length > 1 && (
+            <>
+              <SliderRow
+                label="Max of any single type across all parties"
+                description="Limits how many Pokémon of the same type can be in all players' active parties combined. Warnings appear on the Party page and invalid links are blocked in the picker."
+                value={maxSharedTypeCount}
+                min={0}
+                max={6}
+                step={1}
+                onChange={handleMaxSharedChange}
+                displayValue={typeCountDisplay}
+              />
+              <div className="border-t border-border/50" />
+            </>
+          )}
 
           <SliderRow
             label="Max of any single type within one team"

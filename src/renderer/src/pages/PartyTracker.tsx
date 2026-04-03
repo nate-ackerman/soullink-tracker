@@ -1252,20 +1252,22 @@ function BestCombosSection({
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Strengthen the Weakest Player</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loadingOrEmpty(topMinWeightedCombos.length === 0) ?? (
-            <div className="space-y-2">
-              {topMinWeightedCombos.map((combo, rank) =>
-                renderComboRow(combo, rank, 'Worst', combo.worstWeighted, `Overall ${combo.weighted}`, '')
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {players.length > 1 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Strengthen the Weakest Player</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loadingOrEmpty(topMinWeightedCombos.length === 0) ?? (
+              <div className="space-y-2">
+                {topMinWeightedCombos.map((combo, rank) =>
+                  renderComboRow(combo, rank, 'Worst', combo.worstWeighted, `Overall ${combo.weighted}`, '')
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
     </div>
   )
