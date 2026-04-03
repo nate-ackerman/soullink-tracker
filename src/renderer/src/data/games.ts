@@ -1322,6 +1322,450 @@ const gen5B2W2Checkpoints: GymLeader[] = [
 
 const gen5B2W2Routes: RouteInfo[] = gen5B2W2Checkpoints.flatMap((cp) => cp.locations ?? [])
 
+// ── Gen 6 ─────────────────────────────────────────────────────────────────────
+
+const gen6XYCheckpoints: GymLeader[] = [
+  {
+    name: 'Shauna', city: 'Aquacorde Town', badge: 'Rival', levelCap: 5, types: [], kind: 'rival',
+    locations: [
+      { id: 'gift-starter-sycamore', name: 'Starter (Gift — Prof. Sycamore)', order: 0 },
+      { id: 'route-2-kalos', name: 'Route 2', order: 1 },
+      { id: 'santalune-forest', name: 'Santalune Forest', order: 2 },
+      { id: 'route-3-kalos', name: 'Route 3', order: 3 },
+    ],
+  },
+  {
+    name: 'Viola', city: 'Santalune City', badge: 'Bug Badge', levelCap: 15, types: ['bug'],
+    locations: [
+      { id: 'route-22-kalos', name: 'Route 22', order: 4 },
+      { id: 'route-4-kalos', name: 'Route 4', order: 5 },
+      { id: 'route-5-kalos', name: 'Route 5', order: 6 },
+      { id: 'camphrier-town', name: 'Camphrier Town', order: 7 },
+      { id: 'route-6-kalos', name: 'Route 6', order: 8 },
+      { id: 'connecting-cave', name: 'Connecting Cave', order: 9 },
+      { id: 'route-7-kalos', name: 'Route 7', order: 10 },
+      { id: 'rivière-walk', name: 'Rivière Walk', order: 11 },
+      { id: 'route-8-kalos', name: 'Route 8', order: 12 },
+      { id: 'ambrette-town', name: 'Ambrette Town', order: 13 },
+      { id: 'glittering-cave', name: 'Glittering Cave', order: 14 },
+      { id: 'route-9-kalos', name: 'Route 9', order: 15 },
+    ],
+  },
+  {
+    name: 'Grant', city: 'Cyllage City', badge: 'Cliff Badge', levelCap: 25, types: ['rock'],
+    locations: [
+      { id: 'route-10-kalos', name: 'Route 10', order: 16 },
+      { id: 'route-11-kalos', name: 'Route 11', order: 17 },
+      { id: 'reflection-cave', name: 'Reflection Cave', order: 18 },
+      { id: 'route-12-kalos', name: 'Route 12', order: 19 },
+      { id: 'azure-bay', name: 'Azure Bay', order: 20 },
+    ],
+  },
+  {
+    name: 'Korrina', city: 'Shalour City', badge: 'Rumble Badge', levelCap: 35, types: ['fighting'],
+    locations: [
+      { id: 'route-13-kalos', name: 'Route 13', order: 21 },
+      { id: 'route-14-kalos', name: 'Route 14', order: 22 },
+      { id: 'route-15-kalos', name: 'Route 15', order: 23 },
+      { id: 'route-16-kalos', name: 'Route 16', order: 24 },
+      { id: 'lost-hotel', name: 'Lost Hotel', order: 25 },
+      { id: 'frost-cavern', name: 'Frost Cavern', order: 26 },
+      { id: 'route-17-kalos', name: 'Route 17', order: 27 },
+    ],
+  },
+  {
+    name: 'Ramos', city: 'Coumarine City', badge: 'Plant Badge', levelCap: 39, types: ['grass'],
+    locations: [
+      { id: 'route-18-kalos', name: 'Route 18', order: 28 },
+      { id: 'sea-spirit-den', name: 'Sea Spirit\'s Den', order: 29 },
+    ],
+  },
+  {
+    name: 'Clemont', city: 'Lumiose City', badge: 'Voltage Badge', levelCap: 45, types: ['electric'],
+    locations: [
+      { id: 'pokemon-village', name: 'Pokémon Village', order: 30 },
+      { id: 'route-19-kalos', name: 'Route 19', order: 31 },
+      { id: 'route-20-kalos', name: 'Route 20', order: 32 },
+    ],
+  },
+  {
+    name: 'Valerie', city: 'Laverre City', badge: 'Fairy Badge', levelCap: 49, types: ['fairy'],
+    locations: [
+      { id: 'route-21-kalos', name: 'Route 21', order: 33 },
+    ],
+  },
+  {
+    name: 'Olympia', city: 'Anistar City', badge: 'Psychic Badge', levelCap: 55, types: ['psychic'],
+    locations: [
+      { id: 'route-16-kalos-upper', name: 'Route 16 (upper area)', order: 34 },
+    ],
+  },
+  {
+    name: 'Wulfric', city: 'Snowbelle City', badge: 'Iceberg Badge', levelCap: 59, types: ['ice'],
+    locations: [
+      { id: 'victory-road-kalos', name: 'Victory Road', order: 35 },
+    ],
+  },
+  {
+    name: 'Malva', city: 'Pokémon League', badge: 'Elite Four', levelCap: 63, types: ['fire'], kind: 'elite4',
+    locations: [],
+  },
+  {
+    name: 'Siebold', city: 'Pokémon League', badge: 'Elite Four', levelCap: 63, types: ['water'], kind: 'elite4',
+    locations: [],
+  },
+  {
+    name: 'Wikstrom', city: 'Pokémon League', badge: 'Elite Four', levelCap: 63, types: ['steel'], kind: 'elite4',
+    locations: [],
+  },
+  {
+    name: 'Drasna', city: 'Pokémon League', badge: 'Elite Four', levelCap: 63, types: ['dragon'], kind: 'elite4',
+    locations: [],
+  },
+  {
+    name: 'Diantha', city: 'Pokémon League', badge: 'Champion', levelCap: 68, types: ['normal', 'psychic', 'fighting', 'fairy', 'steel', 'ghost'], kind: 'champion',
+    locations: [],
+  },
+]
+
+const gen6XYRoutes: RouteInfo[] = gen6XYCheckpoints.flatMap((cp) => cp.locations ?? [])
+
+const gen6OrasCheckpoints: GymLeader[] = [
+  {
+    name: 'May / Brendan', city: 'Route 103', badge: 'Rival', levelCap: 5, types: [], kind: 'rival',
+    locations: [
+      { id: 'gift-starter-birch-oras', name: 'Starter (Gift — Prof. Birch)', order: 0 },
+      { id: 'route-101-oras', name: 'Route 101', order: 1 },
+      { id: 'route-102-oras', name: 'Route 102', order: 2 },
+      { id: 'route-103-oras', name: 'Route 103', order: 3 },
+      { id: 'route-104-oras', name: 'Route 104', order: 4 },
+      { id: 'petalburg-woods-oras', name: 'Petalburg Woods', order: 5 },
+    ],
+  },
+  {
+    name: 'Roxanne', city: 'Rustboro City', badge: 'Stone Badge', levelCap: 15, types: ['rock'],
+    locations: [
+      { id: 'route-116-oras', name: 'Route 116', order: 6 },
+      { id: 'rusturf-tunnel-oras', name: 'Rusturf Tunnel', order: 7 },
+      { id: 'route-105-oras', name: 'Route 105', order: 8 },
+      { id: 'route-106-oras', name: 'Route 106', order: 9 },
+      { id: 'dewford-town-oras', name: 'Dewford Town', order: 10 },
+      { id: 'granite-cave-oras', name: 'Granite Cave', order: 11 },
+    ],
+  },
+  {
+    name: 'Brawly', city: 'Dewford Town', badge: 'Knuckle Badge', levelCap: 18, types: ['fighting'],
+    locations: [
+      { id: 'route-107-oras', name: 'Route 107', order: 12 },
+      { id: 'route-108-oras', name: 'Route 108', order: 13 },
+      { id: 'route-109-oras', name: 'Route 109', order: 14 },
+      { id: 'slateport-city-oras', name: 'Slateport City', order: 15 },
+      { id: 'route-110-oras', name: 'Route 110', order: 16 },
+      { id: 'route-103-upper-oras', name: 'Route 103 (upper)', order: 17 },
+      { id: 'route-111-oras', name: 'Route 111', order: 18 },
+      { id: 'route-112-oras', name: 'Route 112', order: 19 },
+      { id: 'fiery-path-oras', name: 'Fiery Path', order: 20 },
+    ],
+  },
+  {
+    name: 'Wattson', city: 'Mauville City', badge: 'Dynamo Badge', levelCap: 22, types: ['electric'],
+    locations: [
+      { id: 'route-117-oras', name: 'Route 117', order: 21 },
+      { id: 'route-113-oras', name: 'Route 113', order: 22 },
+      { id: 'route-114-oras', name: 'Route 114', order: 23 },
+      { id: 'meteor-falls-oras', name: 'Meteor Falls', order: 24 },
+      { id: 'route-115-oras', name: 'Route 115', order: 25 },
+    ],
+  },
+  {
+    name: 'Flannery', city: 'Lavaridge Town', badge: 'Heat Badge', levelCap: 30, types: ['fire'],
+    locations: [
+      { id: 'route-111-desert-oras', name: 'Route 111 (Desert)', order: 26 },
+      { id: 'route-118-oras', name: 'Route 118', order: 27 },
+      { id: 'route-119-oras', name: 'Route 119', order: 28 },
+      { id: 'fortree-city-oras', name: 'Fortree City', order: 29 },
+      { id: 'route-120-oras', name: 'Route 120', order: 30 },
+      { id: 'route-121-oras', name: 'Route 121', order: 31 },
+      { id: 'safari-zone-oras', name: 'Safari Zone', order: 32 },
+      { id: 'route-122-oras', name: 'Route 122', order: 33 },
+      { id: 'mt-pyre-oras', name: 'Mt. Pyre', order: 34 },
+    ],
+  },
+  {
+    name: 'Norman', city: 'Petalburg City', badge: 'Balance Badge', levelCap: 32, types: ['normal'],
+    locations: [
+      { id: 'route-123-oras', name: 'Route 123', order: 35 },
+      { id: 'route-124-oras', name: 'Route 124', order: 36 },
+      { id: 'mossdeep-city-oras', name: 'Mossdeep City', order: 37 },
+      { id: 'route-125-oras', name: 'Route 125', order: 38 },
+      { id: 'shoal-cave-oras', name: 'Shoal Cave', order: 39 },
+    ],
+  },
+  {
+    name: 'Tate & Liza', city: 'Mossdeep City', badge: 'Mind Badge', levelCap: 40, types: ['psychic'],
+    locations: [
+      { id: 'route-126-oras', name: 'Route 126', order: 40 },
+      { id: 'seafloor-cavern-oras', name: 'Seafloor Cavern', order: 41 },
+      { id: 'route-127-oras', name: 'Route 127', order: 42 },
+      { id: 'route-128-oras', name: 'Route 128', order: 43 },
+      { id: 'sootopolis-city-oras', name: 'Sootopolis City', order: 44 },
+    ],
+  },
+  {
+    name: 'Wallace', city: 'Sootopolis City', badge: 'Rain Badge', levelCap: 46, types: ['water'],
+    locations: [
+      { id: 'route-129-oras', name: 'Route 129', order: 45 },
+      { id: 'route-130-oras', name: 'Route 130', order: 46 },
+      { id: 'route-131-oras', name: 'Route 131', order: 47 },
+      { id: 'ever-grande-city-oras', name: 'Ever Grande City', order: 48 },
+      { id: 'victory-road-oras', name: 'Victory Road', order: 49 },
+    ],
+  },
+  {
+    name: 'Sidney', city: 'Pokémon League', badge: 'Elite Four', levelCap: 48, types: ['dark'], kind: 'elite4',
+    locations: [],
+  },
+  {
+    name: 'Phoebe', city: 'Pokémon League', badge: 'Elite Four', levelCap: 51, types: ['ghost'], kind: 'elite4',
+    locations: [],
+  },
+  {
+    name: 'Glacia', city: 'Pokémon League', badge: 'Elite Four', levelCap: 53, types: ['ice'], kind: 'elite4',
+    locations: [],
+  },
+  {
+    name: 'Drake', city: 'Pokémon League', badge: 'Elite Four', levelCap: 53, types: ['dragon'], kind: 'elite4',
+    locations: [],
+  },
+  {
+    name: 'Steven', city: 'Pokémon League', badge: 'Champion', levelCap: 58, types: ['steel', 'rock', 'ground'], kind: 'champion',
+    locations: [],
+  },
+]
+
+const gen6OrasRoutes: RouteInfo[] = gen6OrasCheckpoints.flatMap((cp) => cp.locations ?? [])
+
+// ── Gen 7 ─────────────────────────────────────────────────────────────────────
+
+const gen7SMCheckpoints: GymLeader[] = [
+  {
+    name: 'Hau', city: 'Route 1', badge: 'Rival', levelCap: 5, types: [], kind: 'rival',
+    locations: [
+      { id: 'gift-starter-kukui', name: 'Starter (Gift — Prof. Kukui)', order: 0 },
+      { id: 'route-1-alola', name: 'Route 1', order: 1 },
+      { id: 'iki-town', name: 'Iki Town', order: 2 },
+      { id: 'route-2-alola', name: 'Route 2', order: 3 },
+      { id: 'hau-oli-city', name: 'Hau\'oli City', order: 4 },
+      { id: 'hau-oli-outskirts', name: 'Hau\'oli Outskirts', order: 5 },
+      { id: 'route-3-alola', name: 'Route 3', order: 6 },
+      { id: 'melemele-meadow', name: 'Melemele Meadow', order: 7 },
+      { id: 'kala-e-bay', name: 'Kala\'e Bay', order: 8 },
+      { id: 'seaward-cave', name: 'Seaward Cave', order: 9 },
+    ],
+  },
+  {
+    name: 'Ilima', city: 'Verdant Cavern', badge: 'Normal Trial', levelCap: 14, types: ['normal'], kind: 'other',
+    locations: [
+      { id: 'route-4-alola', name: 'Route 4', order: 10 },
+      { id: 'paniola-town', name: 'Paniola Town', order: 11 },
+      { id: 'route-5-alola', name: 'Route 5', order: 12 },
+      { id: 'paniola-ranch', name: 'Paniola Ranch', order: 13 },
+      { id: 'route-6-alola', name: 'Route 6', order: 14 },
+      { id: 'royal-avenue', name: 'Royal Avenue', order: 15 },
+      { id: 'route-7-alola', name: 'Route 7', order: 16 },
+      { id: 'wela-volcano-park', name: 'Wela Volcano Park', order: 17 },
+      { id: 'route-8-alola', name: 'Route 8', order: 18 },
+      { id: 'lush-jungle', name: 'Lush Jungle', order: 19 },
+    ],
+  },
+  {
+    name: 'Lana', city: 'Brooklet Hill', badge: 'Water Trial', levelCap: 23, types: ['water'], kind: 'other',
+    locations: [],
+  },
+  {
+    name: 'Kiawe', city: 'Wela Volcano Park', badge: 'Fire Trial', levelCap: 23, types: ['fire'], kind: 'other',
+    locations: [],
+  },
+  {
+    name: 'Mallow', city: 'Lush Jungle', badge: 'Grass Trial', levelCap: 25, types: ['grass'], kind: 'other',
+    locations: [
+      { id: 'route-9-alola', name: 'Route 9', order: 20 },
+      { id: 'konikoni-city', name: 'Konikoni City', order: 21 },
+      { id: 'akala-outskirts', name: 'Akala Outskirts', order: 22 },
+      { id: 'diglett-tunnel', name: 'Diglett\'s Tunnel', order: 23 },
+      { id: 'route-11-alola', name: 'Route 11', order: 24 },
+      { id: 'route-12-alola', name: 'Route 12', order: 25 },
+      { id: 'blush-mountain', name: 'Blush Mountain', order: 26 },
+      { id: 'route-13-alola', name: 'Route 13', order: 27 },
+      { id: 'route-14-alola', name: 'Route 14', order: 28 },
+      { id: 'tapu-village', name: 'Tapu Village', order: 29 },
+      { id: 'route-15-alola', name: 'Route 15', order: 30 },
+      { id: 'route-16-alola', name: 'Route 16', order: 31 },
+      { id: 'ula-ula-meadow', name: 'Ula\'ula Meadow', order: 32 },
+      { id: 'po-town', name: 'Po Town', order: 33 },
+    ],
+  },
+  {
+    name: 'Sophocles', city: 'Hokulani Observatory', badge: 'Electric Trial', levelCap: 33, types: ['electric'], kind: 'other',
+    locations: [],
+  },
+  {
+    name: 'Acerola', city: 'Thrifty Megamart', badge: 'Ghost Trial', levelCap: 33, types: ['ghost'], kind: 'other',
+    locations: [
+      { id: 'route-17-alola', name: 'Route 17', order: 34 },
+      { id: 'route-10-alola', name: 'Route 10', order: 35 },
+      { id: 'mount-hokulani', name: 'Mount Hokulani', order: 36 },
+      { id: 'mount-lanakila', name: 'Mount Lanakila', order: 37 },
+      { id: 'ruins-of-conflict', name: 'Ruins of Conflict', order: 38 },
+      { id: 'aether-paradise', name: 'Aether Paradise', order: 39 },
+      { id: 'poni-wilds', name: 'Poni Wilds', order: 40 },
+      { id: 'ancient-poni-path', name: 'Ancient Poni Path', order: 41 },
+      { id: 'poni-meadow', name: 'Poni Meadow', order: 42 },
+      { id: 'resolution-cave', name: 'Resolution Cave', order: 43 },
+      { id: 'poni-coast', name: 'Poni Coast', order: 44 },
+      { id: 'poni-gauntlet', name: 'Poni Gauntlet', order: 45 },
+    ],
+  },
+  {
+    name: 'Mina', city: 'Seafolk Village', badge: 'Fairy Trial', levelCap: 51, types: ['fairy'], kind: 'other',
+    locations: [],
+  },
+  {
+    name: 'Hapu', city: 'Exeggutor Island', badge: 'Grand Trial', levelCap: 51, types: ['ground'], kind: 'other',
+    locations: [],
+  },
+  {
+    name: 'Molayne', city: 'Pokémon League', badge: 'Elite Four', levelCap: 54, types: ['steel'], kind: 'elite4',
+    locations: [],
+  },
+  {
+    name: 'Olivia', city: 'Pokémon League', badge: 'Elite Four', levelCap: 54, types: ['rock'], kind: 'elite4',
+    locations: [],
+  },
+  {
+    name: 'Acerola', city: 'Pokémon League', badge: 'Elite Four', levelCap: 54, types: ['ghost'], kind: 'elite4',
+    locations: [],
+  },
+  {
+    name: 'Kahili', city: 'Pokémon League', badge: 'Elite Four', levelCap: 54, types: ['flying'], kind: 'elite4',
+    locations: [],
+  },
+  {
+    name: 'Hau', city: 'Pokémon League', badge: 'Champion', levelCap: 57, types: [], kind: 'champion',
+    locations: [],
+  },
+]
+
+const gen7SMRoutes: RouteInfo[] = gen7SMCheckpoints.flatMap((cp) => cp.locations ?? [])
+
+const gen7USUMCheckpoints: GymLeader[] = [
+  {
+    name: 'Hau', city: 'Route 1', badge: 'Rival', levelCap: 5, types: [], kind: 'rival',
+    locations: [
+      { id: 'gift-starter-kukui-usum', name: 'Starter (Gift — Prof. Kukui)', order: 0 },
+      { id: 'route-1-alola-usum', name: 'Route 1', order: 1 },
+      { id: 'iki-town-usum', name: 'Iki Town', order: 2 },
+      { id: 'route-2-alola-usum', name: 'Route 2', order: 3 },
+      { id: 'hau-oli-city-usum', name: 'Hau\'oli City', order: 4 },
+      { id: 'hau-oli-outskirts-usum', name: 'Hau\'oli Outskirts', order: 5 },
+      { id: 'route-3-alola-usum', name: 'Route 3', order: 6 },
+      { id: 'melemele-meadow-usum', name: 'Melemele Meadow', order: 7 },
+    ],
+  },
+  {
+    name: 'Ilima', city: 'Verdant Cavern', badge: 'Normal Trial', levelCap: 14, types: ['normal'], kind: 'other',
+    locations: [
+      { id: 'route-4-alola-usum', name: 'Route 4', order: 8 },
+      { id: 'paniola-town-usum', name: 'Paniola Town', order: 9 },
+      { id: 'route-5-alola-usum', name: 'Route 5', order: 10 },
+      { id: 'paniola-ranch-usum', name: 'Paniola Ranch', order: 11 },
+      { id: 'route-6-alola-usum', name: 'Route 6', order: 12 },
+      { id: 'royal-avenue-usum', name: 'Royal Avenue', order: 13 },
+      { id: 'route-7-alola-usum', name: 'Route 7', order: 14 },
+      { id: 'wela-volcano-park-usum', name: 'Wela Volcano Park', order: 15 },
+      { id: 'route-8-alola-usum', name: 'Route 8', order: 16 },
+      { id: 'lush-jungle-usum', name: 'Lush Jungle', order: 17 },
+    ],
+  },
+  {
+    name: 'Lana', city: 'Brooklet Hill', badge: 'Water Trial', levelCap: 23, types: ['water'], kind: 'other',
+    locations: [],
+  },
+  {
+    name: 'Kiawe', city: 'Wela Volcano Park', badge: 'Fire Trial', levelCap: 23, types: ['fire'], kind: 'other',
+    locations: [],
+  },
+  {
+    name: 'Mallow', city: 'Lush Jungle', badge: 'Grass Trial', levelCap: 25, types: ['grass'], kind: 'other',
+    locations: [
+      { id: 'route-9-alola-usum', name: 'Route 9', order: 18 },
+      { id: 'konikoni-city-usum', name: 'Konikoni City', order: 19 },
+      { id: 'akala-outskirts-usum', name: 'Akala Outskirts', order: 20 },
+      { id: 'diglett-tunnel-usum', name: 'Diglett\'s Tunnel', order: 21 },
+      { id: 'route-11-alola-usum', name: 'Route 11', order: 22 },
+      { id: 'route-12-alola-usum', name: 'Route 12', order: 23 },
+      { id: 'blush-mountain-usum', name: 'Blush Mountain', order: 24 },
+      { id: 'route-13-alola-usum', name: 'Route 13', order: 25 },
+      { id: 'route-14-alola-usum', name: 'Route 14', order: 26 },
+      { id: 'tapu-village-usum', name: 'Tapu Village', order: 27 },
+      { id: 'route-15-alola-usum', name: 'Route 15', order: 28 },
+      { id: 'route-16-alola-usum', name: 'Route 16', order: 29 },
+      { id: 'ula-ula-meadow-usum', name: 'Ula\'ula Meadow', order: 30 },
+      { id: 'po-town-usum', name: 'Po Town', order: 31 },
+    ],
+  },
+  {
+    name: 'Sophocles', city: 'Hokulani Observatory', badge: 'Electric Trial', levelCap: 33, types: ['electric'], kind: 'other',
+    locations: [],
+  },
+  {
+    name: 'Acerola', city: 'Thrifty Megamart', badge: 'Ghost Trial', levelCap: 33, types: ['ghost'], kind: 'other',
+    locations: [
+      { id: 'route-17-alola-usum', name: 'Route 17', order: 32 },
+      { id: 'route-10-alola-usum', name: 'Route 10', order: 33 },
+      { id: 'mount-hokulani-usum', name: 'Mount Hokulani', order: 34 },
+      { id: 'mount-lanakila-usum', name: 'Mount Lanakila', order: 35 },
+      { id: 'aether-paradise-usum', name: 'Aether Paradise', order: 36 },
+      { id: 'poni-wilds-usum', name: 'Poni Wilds', order: 37 },
+      { id: 'ancient-poni-path-usum', name: 'Ancient Poni Path', order: 38 },
+      { id: 'poni-meadow-usum', name: 'Poni Meadow', order: 39 },
+      { id: 'resolution-cave-usum', name: 'Resolution Cave', order: 40 },
+      { id: 'poni-coast-usum', name: 'Poni Coast', order: 41 },
+      { id: 'poni-gauntlet-usum', name: 'Poni Gauntlet', order: 42 },
+    ],
+  },
+  {
+    name: 'Mina', city: 'Seafolk Village', badge: 'Fairy Trial', levelCap: 51, types: ['fairy'], kind: 'other',
+    locations: [],
+  },
+  {
+    name: 'Hapu', city: 'Exeggutor Island', badge: 'Grand Trial', levelCap: 51, types: ['ground'], kind: 'other',
+    locations: [],
+  },
+  {
+    name: 'Molayne', city: 'Pokémon League', badge: 'Elite Four', levelCap: 55, types: ['steel'], kind: 'elite4',
+    locations: [],
+  },
+  {
+    name: 'Olivia', city: 'Pokémon League', badge: 'Elite Four', levelCap: 55, types: ['rock'], kind: 'elite4',
+    locations: [],
+  },
+  {
+    name: 'Acerola', city: 'Pokémon League', badge: 'Elite Four', levelCap: 55, types: ['ghost'], kind: 'elite4',
+    locations: [],
+  },
+  {
+    name: 'Kahili', city: 'Pokémon League', badge: 'Elite Four', levelCap: 55, types: ['flying'], kind: 'elite4',
+    locations: [],
+  },
+  {
+    name: 'Hau', city: 'Pokémon League', badge: 'Champion', levelCap: 60, types: [], kind: 'champion',
+    locations: [],
+  },
+]
+
+const gen7USUMRoutes: RouteInfo[] = gen7USUMCheckpoints.flatMap((cp) => cp.locations ?? [])
+
 export const GAMES: GameInfo[] = [
   // Gen 1
   { id: 'red', name: 'Pokémon Red', generation: 1, region: 'Kanto', routes: gen1Routes, gymLeaders: gen1RBGyms },
@@ -1351,6 +1795,18 @@ export const GAMES: GameInfo[] = [
   // Gen 5 B2W2
   { id: 'black2', name: 'Pokémon Black 2', generation: 5, region: 'Unova', routes: gen5B2W2Routes, gymLeaders: gen5B2W2Checkpoints },
   { id: 'white2', name: 'Pokémon White 2', generation: 5, region: 'Unova', routes: gen5B2W2Routes, gymLeaders: gen5B2W2Checkpoints },
+  // Gen 6 XY
+  { id: 'x', name: 'Pokémon X', generation: 6, region: 'Kalos', routes: gen6XYRoutes, gymLeaders: gen6XYCheckpoints },
+  { id: 'y', name: 'Pokémon Y', generation: 6, region: 'Kalos', routes: gen6XYRoutes, gymLeaders: gen6XYCheckpoints },
+  // Gen 6 ORAS
+  { id: 'omega-ruby', name: 'Pokémon Omega Ruby', generation: 6, region: 'Hoenn', routes: gen6OrasRoutes, gymLeaders: gen6OrasCheckpoints },
+  { id: 'alpha-sapphire', name: 'Pokémon Alpha Sapphire', generation: 6, region: 'Hoenn', routes: gen6OrasRoutes, gymLeaders: gen6OrasCheckpoints },
+  // Gen 7 SM
+  { id: 'sun', name: 'Pokémon Sun', generation: 7, region: 'Alola', routes: gen7SMRoutes, gymLeaders: gen7SMCheckpoints },
+  { id: 'moon', name: 'Pokémon Moon', generation: 7, region: 'Alola', routes: gen7SMRoutes, gymLeaders: gen7SMCheckpoints },
+  // Gen 7 USUM
+  { id: 'ultra-sun', name: 'Pokémon Ultra Sun', generation: 7, region: 'Alola', routes: gen7USUMRoutes, gymLeaders: gen7USUMCheckpoints },
+  { id: 'ultra-moon', name: 'Pokémon Ultra Moon', generation: 7, region: 'Alola', routes: gen7USUMRoutes, gymLeaders: gen7USUMCheckpoints },
 ]
 
 export const GAMES_BY_GEN: Record<number, GameInfo[]> = {
@@ -1359,6 +1815,8 @@ export const GAMES_BY_GEN: Record<number, GameInfo[]> = {
   3: GAMES.filter((g) => g.generation === 3),
   4: GAMES.filter((g) => g.generation === 4),
   5: GAMES.filter((g) => g.generation === 5),
+  6: GAMES.filter((g) => g.generation === 6),
+  7: GAMES.filter((g) => g.generation === 7),
 }
 
 export function getGameById(id: string): GameInfo | undefined {
