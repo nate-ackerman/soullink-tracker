@@ -251,10 +251,18 @@ export const GAME_VERSION_GROUPS: Record<string, string[]> = {
   platinum:   ['platinum'],
   heartgold:  ['heartgold-soulsilver'],
   soulsilver: ['heartgold-soulsilver'],
-  black:      ['black-white'],
-  white:      ['black-white'],
-  black2:     ['black-2-white-2'],
-  white2:     ['black-2-white-2'],
+  black:           ['black-white'],
+  white:           ['black-white'],
+  black2:          ['black-2-white-2'],
+  white2:          ['black-2-white-2'],
+  x:               ['x-y'],
+  y:               ['x-y'],
+  'omega-ruby':    ['omega-ruby-alpha-sapphire'],
+  'alpha-sapphire':['omega-ruby-alpha-sapphire'],
+  sun:             ['sun-moon'],
+  moon:            ['sun-moon'],
+  'ultra-sun':     ['ultra-sun-ultra-moon'],
+  'ultra-moon':    ['ultra-sun-ultra-moon'],
 }
 
 // Fallback: all version groups for a generation (used when game ID is unknown).
@@ -263,7 +271,9 @@ const GEN_VERSION_GROUPS: Record<number, string[]> = {
   2: ['gold-silver', 'crystal'],
   3: ['ruby-sapphire', 'emerald', 'firered-leafgreen'],
   4: ['diamond-pearl', 'platinum', 'heartgold-soulsilver'],
-  5: ['black-white', 'black-2-white-2']
+  5: ['black-white', 'black-2-white-2'],
+  6: ['x-y', 'omega-ruby-alpha-sapphire'],
+  7: ['sun-moon', 'ultra-sun-ultra-moon'],
 }
 
 // Inverted map: version group name → generation number.
