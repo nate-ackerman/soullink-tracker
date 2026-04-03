@@ -1,4 +1,5 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
+import { useSessionState } from '../hooks/useSessionState'
 import { Calculator } from 'lucide-react'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
@@ -35,20 +36,24 @@ function BallIcon({ id, size = 24 }: { id: string; size?: number }) {
 
 export function CatchCalc() {
   const { activeRun, levelCap } = useAppStore()
-  const [pokemonQuery, setPokemonQuery] = useState('')
-  const [selectedPokemon, setSelectedPokemon] = useState('')
+  const [pokemonQuery, setPokemonQuery] = useSessionState('catchcalc_query', '')
+  const [selectedPokemon, setSelectedPokemon] = useSessionState('catchcalc_pokemon', '')
   const [showDropdown, setShowDropdown] = useState(false)
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
-  const [wildLevel, setWildLevel] = useState(() => String(levelCap ?? 5))
+  const [wildLevel, setWildLevel] = useSessionState('catchcalc_level', String(levelCap ?? 5))
+  const [turns, setTurns] = useSessionState('catchcalc_turns', '1')
+  const [hpPercent, setHpPercent] = useSessionState('catchcalc_hp', '100')
+  const [status, setStatus] = useSessionState('catchcalc_status', 'none')
+  const [selectedBall, setSelectedBall] = useSessionState('catchcalc_ball', 'pokeball')
 
-  // Sync wild level when global level cap changes
+  // Sync wild level when global level cap actually changes (not just on mount)
+  const prevLevelCap = useRef(levelCap)
   useEffect(() => {
-    if (levelCap !== null) setWildLevel(String(levelCap))
+    if (levelCap !== null && levelCap !== prevLevelCap.current) {
+      setWildLevel(String(levelCap))
+    }
+    prevLevelCap.current = levelCap
   }, [levelCap])
-  const [turns, setTurns] = useState('1')
-  const [hpPercent, setHpPercent] = useState('100')
-  const [status, setStatus] = useState('none')
-  const [selectedBall, setSelectedBall] = useState('pokeball')
 
   const generation = activeRun?.generation ?? 3
   const gameId = activeRun?.game ?? ''
