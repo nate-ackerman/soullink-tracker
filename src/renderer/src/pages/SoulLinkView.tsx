@@ -485,7 +485,9 @@ export function SoulLinkView() {
               ? (players.length === 1 ? 'No Pokémon yet' : 'No soul links yet')
               : searchQuery
               ? 'No links match your search'
-              : `No ${filter} links`}
+              : players.length === 1
+                ? `No ${filter === 'broken' ? 'lost' : filter} Pokémon`
+                : `No ${filter} links`}
           </p>
           {soulLinks.length === 0 && (
             <p className="text-text-muted text-xs mt-1">

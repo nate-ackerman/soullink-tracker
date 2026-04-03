@@ -241,7 +241,9 @@ function MarkDeathModal({ activeLinks, prefillRoute, onConfirm, onClose }: MarkD
               )
             })}
             {activeLinks.length === 0 && (
-              <p className="text-xs text-text-muted text-center py-4">No active soul links</p>
+              <p className="text-xs text-text-muted text-center py-4">
+                {players.length === 1 ? 'No active Pokémon' : 'No active soul links'}
+              </p>
             )}
           </div>
 
