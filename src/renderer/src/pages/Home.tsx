@@ -132,6 +132,7 @@ export function Home() {
   const [joinLoading, setJoinLoading] = useState(false)
   const [joinError, setJoinError] = useState<string | null>(null)
   const [convertingRunId, setConvertingRunId] = useState<string | null>(null)
+  const [runsTab, setRunsTab] = useState<'active' | 'inactive'>('active')
   const [wizardData, setWizardData] = useState<WizardData>({
     name: '',
     game: '',
@@ -300,8 +301,8 @@ export function Home() {
   const canProceed = step === 1 ? !!wizardData.name && !!wizardData.game : true
 
   return (
-    <div className="min-h-full bg-secondary p-6">
-      <div className="max-w-2xl mx-auto">
+    <div className="h-full bg-secondary p-6 flex flex-col overflow-hidden">
+      <div className="max-w-2xl mx-auto w-full flex flex-col flex-1 min-h-0">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -339,26 +340,57 @@ export function Home() {
               <Plus className="w-4 h-4" /> Create Run
             </Button>
           </div>
-        ) : (
-          <div className="space-y-2">
-            <p className="text-xs text-text-muted uppercase tracking-wider mb-3">
-              {runs.length} run{runs.length !== 1 ? 's' : ''}
-            </p>
-            <AnimatePresence>
-              {runs.map((run) => (
-                <RunCard
-                  key={run.id}
-                  run={run}
-                  onSelect={() => handleSelectRun(run)}
-                  onDelete={() => handleDeleteRun(run.id)}
-                  onToggleStatus={() => handleToggleRunStatus(run)}
-                  onConvert={() => handleConvertRun(run)}
-                  converting={convertingRunId === run.id}
-                />
-              ))}
-            </AnimatePresence>
-          </div>
-        )}
+        ) : (() => {
+          const activeRuns = runs.filter((r) => r.status === 'active')
+          const inactiveRuns = runs.filter((r) => r.status !== 'active')
+          const visibleRuns = runsTab === 'active' ? activeRuns : inactiveRuns
+          return (
+            <div className="flex flex-col min-h-0">
+              {/* Tabs */}
+              <div className="flex gap-1 mb-3">
+                {(['active', 'inactive'] as const).map((tab) => {
+                  const count = tab === 'active' ? activeRuns.length : inactiveRuns.length
+                  return (
+                    <button
+                      key={tab}
+                      onClick={() => setRunsTab(tab)}
+                      className={`px-3 py-1.5 rounded text-xs font-medium border transition-colors ${
+                        runsTab === tab
+                          ? 'bg-elevated border-border-light text-text-primary'
+                          : 'border-transparent text-text-muted hover:text-text-secondary'
+                      }`}
+                    >
+                      {tab === 'active' ? 'Active Runs' : 'Inactive Runs'}
+                      <span className="ml-1.5 opacity-60">{count}</span>
+                    </button>
+                  )
+                })}
+              </div>
+              {/* Scrollable list */}
+              <div className="overflow-y-auto space-y-2 pr-1" style={{ maxHeight: 'calc(100vh - 260px)' }}>
+                {visibleRuns.length === 0 ? (
+                  <p className="text-sm text-text-muted text-center py-8">
+                    No {runsTab === 'active' ? 'active' : 'inactive'} runs
+                  </p>
+                ) : (
+                  <AnimatePresence>
+                    {visibleRuns.map((run) => (
+                      <RunCard
+                        key={run.id}
+                        run={run}
+                        onSelect={() => handleSelectRun(run)}
+                        onDelete={() => handleDeleteRun(run.id)}
+                        onToggleStatus={() => handleToggleRunStatus(run)}
+                        onConvert={() => handleConvertRun(run)}
+                        converting={convertingRunId === run.id}
+                      />
+                    ))}
+                  </AnimatePresence>
+                )}
+              </div>
+            </div>
+          )
+        })()}
       </div>
 
       {/* Join Run Modal */}
