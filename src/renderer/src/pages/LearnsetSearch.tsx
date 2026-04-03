@@ -1,17 +1,24 @@
 import { useLocation } from 'react-router-dom'
 import { BookOpen, ChevronRight } from 'lucide-react'
 import { Input } from '../components/ui/Input'
+import { Select } from '../components/ui/Select'
 import { TypeBadge } from '../components/pokemon/TypeBadge'
 import { PokemonSprite } from '../components/pokemon/PokemonSprite'
 import { Spinner } from '../components/ui/Spinner'
 import { Tabs, TabContent } from '../components/ui/Tabs'
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card'
+import { ProgressBar } from '../components/ui/ProgressBar'
 import { useAppStore } from '../store/appStore'
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useSessionState } from '../hooks/useSessionState'
 import { usePokemonByName, useMoveDetailsBatch, useMachineBatch, usePokemonSearch, usePokemonSpecies, usePokemonSpeciesBatch, useEvolutionChain, useAbilityBatch, getPokemonTypes, extractMovesForGeneration, getVersionGroups, GEN_NAME_TO_NUM, VERSION_GROUP_TO_GEN } from '../api/pokeapi'
-import type { LearnsetMove, MoveData, AbilityData, ChainLink } from '../api/pokeapi'
+import type { LearnsetMove, MoveData, AbilityData, ChainLink, PokemonData, PokemonSpeciesData } from '../api/pokeapi'
 import { Modal } from '../components/ui/Modal'
 import { getTypeMatchups } from '../data/typeColors'
+import {
+  getAvailableBalls, getBallBonus, calculateCatchProbability, calculateAllBalls,
+  STATUS_BONUSES, STATUS_OPTIONS,
+} from '../utils/catchRate'
 
 interface EvoStage { name: string; level: number | null }
 
@@ -50,6 +57,7 @@ const LEARN_METHOD_TABS = [
   { id: 'tutor', label: 'Tutor' },
   { id: 'abilities', label: 'Abilities' },
   { id: 'matchups', label: 'Matchups' },
+  { id: 'catch-calc', label: 'Catch Calc' },
 ]
 
 // ── Type matchup matrix ───────────────────────────────────────────────────────
@@ -263,6 +271,158 @@ function MoveRow({ move, moveData, tmNumber, showTmColumn, onClick }: { move: Le
     </tr>
   )
 }
+
+// ── Catch Calculator tab ──────────────────────────────────────────────────────
+
+function getBallSpriteUrl(id: string): string {
+  return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/${id.replace('ball', '-ball')}.png`
+}
+function BallIcon({ id, size = 24 }: { id: string; size?: number }) {
+  return <img src={getBallSpriteUrl(id)} alt="" width={size} height={size} style={{ imageRendering: 'pixelated' }} />
+}
+function getProbColor(prob: number): string {
+  if (prob >= 0.75) return '#22c55e'
+  if (prob >= 0.4)  return '#f59e0b'
+  if (prob >= 0.15) return '#f97316'
+  return '#ef4444'
+}
+
+function CatchCalcTab({ pokemonData, speciesData, generation, gameId }: {
+  pokemonData: PokemonData | undefined
+  speciesData: PokemonSpeciesData | undefined
+  generation: number
+  gameId: string
+}) {
+  const { levelCap } = useAppStore()
+  const [wildLevel, setWildLevel] = useSessionState('catchcalc_level', String(levelCap ?? 5))
+  const [turns, setTurns] = useSessionState('catchcalc_turns', '1')
+  const [hpPercent, setHpPercent] = useSessionState('catchcalc_hp', '100')
+  const [status, setStatus] = useSessionState('catchcalc_status', 'none')
+  const [selectedBall, setSelectedBall] = useSessionState('catchcalc_ball', 'pokeball')
+
+  const prevLevelCap = useRef(levelCap)
+  useEffect(() => {
+    if (levelCap !== null && levelCap !== prevLevelCap.current) setWildLevel(String(levelCap))
+    prevLevelCap.current = levelCap
+  }, [levelCap])
+
+  const availableBalls = useMemo(() => getAvailableBalls(gameId, generation), [gameId, generation])
+  const activeBallId = availableBalls.some((b) => b.id === selectedBall) ? selectedBall : 'pokeball'
+  const selectedBallData = availableBalls.find((b) => b.id === activeBallId) ?? availableBalls[0]
+
+  const level = Math.max(1, Math.min(100, parseInt(wildLevel) || 5))
+  const turnCount = Math.max(1, Math.min(99, parseInt(turns) || 1))
+  const baseHp = pokemonData?.stats.find((s) => s.stat.name === 'hp')?.base_stat ?? 45
+  const maxHp = pokemonData ? Math.floor((2 * baseHp * level) / 100) + level + 10 : 100
+  const hpPct = Math.max(1, Math.min(100, parseFloat(hpPercent) || 100))
+  const currentHp = Math.max(1, Math.floor((maxHp * hpPct) / 100))
+  const catchRate = speciesData?.capture_rate ?? 45
+  const statusBonus = STATUS_BONUSES[status] ?? 1
+  const selectedBallBonus = getBallBonus(activeBallId, level, turnCount, generation)
+  const hasTurnBalls = availableBalls.some((b) => b.id === 'timerball' || b.id === 'quickball')
+
+  const mainResult = useMemo(() => calculateCatchProbability({ maxHp, currentHp, catchRate, ballBonus: selectedBallBonus, statusBonus, generation }), [maxHp, currentHp, catchRate, selectedBallBonus, statusBonus, generation])
+  const allBallResults = useMemo(() => calculateAllBalls({ maxHp, currentHp, catchRate, statusBonus, generation, level, turns: turnCount }, availableBalls).sort((a, b) => b.probability - a.probability), [maxHp, currentHp, catchRate, statusBonus, generation, level, turnCount, availableBalls])
+  const ballOptions = availableBalls.map((b) => ({ value: b.id, label: b.note ? `${b.name} (${b.note})` : b.name }))
+
+  if (!pokemonData) {
+    return <div className="text-center py-12 text-text-muted text-sm">Search for a Pokémon above to use the catch calculator.</div>
+  }
+
+  return (
+    <div className="p-4 space-y-4 max-w-2xl">
+      {/* Catch rate summary */}
+      <div className="flex items-center gap-3 px-3 py-2 bg-elevated rounded-lg border border-border text-sm">
+        <span className="text-text-muted">Base catch rate:</span>
+        <span className="font-bold text-text-primary">{catchRate}</span>
+        <span className="text-text-muted">Gen {generation} formula</span>
+      </div>
+
+      <Card>
+        <CardContent className="space-y-3 pt-4">
+          {/* Level + Turns */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Input label="Wild Pokémon Level" type="number" min="1" max="100" value={wildLevel} onChange={(e) => setWildLevel(e.target.value)} placeholder="1–100" />
+              <p className="text-[10px] text-text-muted mt-0.5">Max HP: <span className="font-medium text-text-secondary">{maxHp}</span> (base {baseHp})</p>
+            </div>
+            <div>
+              <Input label="Turn number" type="number" min="1" max="99" value={turns} onChange={(e) => setTurns(e.target.value)} placeholder="1+" />
+              {hasTurnBalls && (
+                <p className="text-[10px] text-text-muted mt-0.5">
+                  Affects {[availableBalls.some(b => b.id === 'timerball') && 'Timer Ball', availableBalls.some(b => b.id === 'quickball') && 'Quick Ball'].filter(Boolean).join(', ')}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* HP + Status */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Input label={`HP Percentage (${hpPct}%)`} type="range" min="1" max="100" value={hpPercent} onChange={(e) => setHpPercent(e.target.value)} className="h-2 accent-accent-red px-0 py-0 border-0 bg-transparent" />
+              <div className="flex justify-between text-xs text-text-muted mt-1">
+                <span>1%</span>
+                <span className="flex flex-col items-center gap-0.5">
+                  <span className="text-accent-red font-semibold text-sm leading-none">{hpPct}%</span>
+                  <span className="text-[10px]">current</span>
+                </span>
+                <span>100%</span>
+              </div>
+            </div>
+            <Select label="Status Condition" options={STATUS_OPTIONS} value={status} onChange={(e) => setStatus(e.target.value)} />
+          </div>
+
+          <Select label="Poké Ball" options={ballOptions} value={activeBallId} onChange={(e) => setSelectedBall(e.target.value)} />
+        </CardContent>
+      </Card>
+
+      {/* Main result */}
+      <Card className="border-border-light">
+        <CardContent className="pt-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <BallIcon id={activeBallId} size={32} />
+              <div>
+                <span className="text-sm text-text-secondary">{selectedBallData.name}</span>
+                {selectedBallData.note && <span className="text-xs text-text-muted ml-1.5">({selectedBallData.note})</span>}
+                <p className="text-xs text-text-muted">×{selectedBallBonus.toFixed(selectedBallBonus % 1 === 0 ? 0 : 1)} ball bonus</p>
+              </div>
+            </div>
+            <span className="text-2xl font-bold" style={{ color: getProbColor(mainResult.probability) }}>{mainResult.percentDisplay}</span>
+          </div>
+          <ProgressBar value={mainResult.probability * 100} max={100} color={getProbColor(mainResult.probability)} showPercent={false} />
+          <div className="flex gap-4 text-sm">
+            <div><p className="text-text-muted text-xs">Expected balls</p><p className="font-medium text-text-primary">{mainResult.probability >= 1 ? '1' : mainResult.expectedBalls.toFixed(1)}</p></div>
+            <div><p className="text-text-muted text-xs">HP (approx)</p><p className="font-medium text-text-primary">{currentHp} / {maxHp}</p></div>
+            <div><p className="text-text-muted text-xs">Catch rate</p><p className="font-medium text-text-primary">{catchRate}</p></div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* All ball comparison */}
+      <Card>
+        <CardHeader><CardTitle>All Ball Comparison</CardTitle></CardHeader>
+        <CardContent className="space-y-2">
+          {allBallResults.map((ball) => (
+            <div key={ball.id} className="flex items-center gap-3">
+              <div className="w-36 shrink-0 flex items-center gap-1.5">
+                <BallIcon id={ball.id} size={20} />
+                <div className="min-w-0">
+                  <p className="text-xs text-text-secondary truncate">{ball.name}</p>
+                  <p className="text-[10px] text-text-muted">{ball.note ? `${ball.note} · ×${ball.ballBonus.toFixed(ball.ballBonus % 1 === 0 ? 0 : 1)}` : `×${ball.ballBonus.toFixed(ball.ballBonus % 1 === 0 ? 0 : 1)}`}</p>
+                </div>
+              </div>
+              <div className="flex-1"><ProgressBar value={ball.probability * 100} max={100} color={getProbColor(ball.probability)} /></div>
+              <span className="text-xs font-medium w-14 text-right" style={{ color: getProbColor(ball.probability) }}>{ball.percentDisplay}</span>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
 
 export function LearnsetSearch() {
   const { activeRun } = useAppStore()
@@ -500,7 +660,7 @@ export function LearnsetSearch() {
         <div>
           <Tabs
             tabs={LEARN_METHOD_TABS.map(t => {
-              if (t.id === 'matchups') return t
+              if (t.id === 'matchups' || t.id === 'catch-calc') return t
               if (t.id === 'abilities') return { ...t, label: `${t.label} (${abilityEntries.length})` }
               return { ...t, label: `${t.label} (${movesByMethod[t.id]?.length ?? 0})` }
             })}
@@ -534,6 +694,8 @@ export function LearnsetSearch() {
                     ))}
                   </div>
                 )
+              ) : activeTab === 'catch-calc' ? (
+                <CatchCalcTab pokemonData={pokemonData} speciesData={speciesData} generation={generation} gameId={gameId} />
               ) : movesLoading ? (
                 <div className="flex items-center justify-center py-16">
                   <Spinner size="lg" />

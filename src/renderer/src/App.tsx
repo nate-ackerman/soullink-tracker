@@ -7,7 +7,6 @@ import { RouteTracker } from './pages/RouteTracker'
 import { SoulLinkView } from './pages/SoulLinkView'
 import { PartyTracker } from './pages/PartyTracker'
 import { LearnsetSearch } from './pages/LearnsetSearch'
-import { CatchCalc } from './pages/CatchCalc'
 import { Notes } from './pages/Notes'
 import { Settings } from './pages/Settings'
 import { Graveyard } from './pages/Graveyard'
@@ -79,7 +78,6 @@ export default function App() {
               <Route path="/soul-links" element={<ErrorBoundary><SoulLinkView /></ErrorBoundary>} />
               <Route path="/party" element={<ErrorBoundary><PartyTracker /></ErrorBoundary>} />
               <Route path="/learnset" element={<ErrorBoundary><LearnsetSearch /></ErrorBoundary>} />
-              <Route path="/catch-calc" element={<ErrorBoundary><CatchCalc /></ErrorBoundary>} />
               <Route path="/graveyard" element={<ErrorBoundary><Graveyard /></ErrorBoundary>} />
               <Route path="/notes" element={<ErrorBoundary><Notes /></ErrorBoundary>} />
               <Route path="/settings" element={<ErrorBoundary><Settings /></ErrorBoundary>} />
