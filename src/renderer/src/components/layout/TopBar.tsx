@@ -17,8 +17,10 @@ const PAGE_TITLES: Record<string, string> = {
 
 export function TopBar() {
   const location = useLocation()
-  const { activeRun, levelCap } = useAppStore()
-  const title = PAGE_TITLES[location.pathname] ?? 'Soul Link Tracker'
+  const { activeRun, levelCap, players } = useAppStore()
+  const isSolo = players.length === 1
+  const rawTitle = PAGE_TITLES[location.pathname] ?? 'Soul Link Tracker'
+  const title = location.pathname === '/soul-links' && isSolo ? 'Pokémon' : rawTitle
 
   const statusVariant =
     activeRun?.status === 'active'

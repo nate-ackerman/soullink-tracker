@@ -6,20 +6,21 @@ import {
 import { cn } from '../../utils/cn'
 import { useAppStore } from '../../store/appStore'
 
-const NAV_ITEMS = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/routes', icon: Map, label: 'Encounters' },
-  { to: '/soul-links', icon: Link2, label: 'Soul Links' },
-  { to: '/party', icon: Users, label: 'Party' },
-  { to: '/learnset', icon: BookOpen, label: 'Pokemon Data' },
-  { to: '/catch-calc', icon: Calculator, label: 'Catch Calc' },
-  { to: '/notes', icon: FileText, label: 'Notes' },
-  { to: '/info', icon: Info, label: 'Info' },
-  { to: '/settings', icon: Settings, label: 'Settings' }
-]
-
 export function Sidebar() {
-  const { sidebarCollapsed, setSidebarCollapsed, activeRun, setActiveRun } = useAppStore()
+  const { sidebarCollapsed, setSidebarCollapsed, activeRun, setActiveRun, players } = useAppStore()
+  const isSolo = players.length === 1
+
+  const NAV_ITEMS = [
+    { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+    { to: '/routes', icon: Map, label: 'Encounters' },
+    { to: '/soul-links', icon: Link2, label: isSolo ? 'Pokémon' : 'Soul Links' },
+    { to: '/party', icon: Users, label: 'Party' },
+    { to: '/learnset', icon: BookOpen, label: 'Pokemon Data' },
+    { to: '/catch-calc', icon: Calculator, label: 'Catch Calc' },
+    { to: '/notes', icon: FileText, label: 'Notes' },
+    { to: '/info', icon: Info, label: 'Info' },
+    { to: '/settings', icon: Settings, label: 'Settings' }
+  ]
   const navigate = useNavigate()
 
   return (
@@ -32,7 +33,7 @@ export function Sidebar() {
       {/* Logo */}
       <div className="flex items-center justify-between px-3 py-4 border-b border-border">
         {!sidebarCollapsed && (
-          <span className="text-sm font-bold text-accent-red tracking-wide">SOUL LINK</span>
+          <span className="text-sm font-bold text-accent-red tracking-wide">{isSolo ? 'NUZLOCKE' : 'SOUL LINK'}</span>
         )}
         <button
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}

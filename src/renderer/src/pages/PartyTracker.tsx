@@ -213,14 +213,16 @@ function SoulLinkPicker({ open, onClose, runId, onAdded }: SoulLinkPickerProps) 
     refreshParty()   // reconcile after API completes
   }
 
+  const isSolo = players.length === 1
+
   return (
-    <Modal open={open} onOpenChange={(o) => !o && onClose()} title="Add Soul Link to Party" size="md">
+    <Modal open={open} onOpenChange={(o) => !o && onClose()} title={isSolo ? 'Add Pokémon to Party' : 'Add Soul Link to Party'} size="md">
       <div className="space-y-2 max-h-80 overflow-y-auto">
         {available.length === 0 ? (
           <p className="text-sm text-text-muted text-center py-6">
             {soulLinks.filter((sl) => sl.status === 'active').length === 0
-              ? 'No active soul links yet — catch Pokémon on routes first'
-              : 'All active soul links are already in party'}
+              ? (isSolo ? 'No Pokémon caught yet' : 'No active soul links yet — catch Pokémon on routes first')
+              : (isSolo ? 'All caught Pokémon are already in party' : 'All active soul links are already in party')}
           </p>
         ) : (
           available.map((link) => {
@@ -296,6 +298,7 @@ function PartySlotCard({
 }) {
   const CARD_H = 150
   const navigate = useNavigate()
+  const { players } = useAppStore()
 
   if (!catch_) {
     return (
@@ -317,7 +320,7 @@ function PartySlotCard({
       <button
         onClick={(e) => { e.stopPropagation(); onRemove() }}
         className="absolute top-1 right-1 p-0.5 rounded text-text-muted hover:text-red-400 hover:bg-elevated transition-colors"
-        title="Remove soul link from party"
+        title={players.length === 1 ? 'Remove from party' : 'Remove soul link from party'}
       >
         <X className="w-3.5 h-3.5" />
       </button>
@@ -1616,10 +1619,12 @@ export function PartyTracker() {
           <div className="space-y-4">
               <div className="flex items-center gap-3 flex-wrap">
                 <Button onClick={() => setPickerOpen(true)} disabled={availableCount === 0} className="bg-accent-teal hover:bg-teal-500 focus:ring-accent-teal text-white">
-                  <Plus className="w-4 h-4" /> Add Soul Link
+                  <Plus className="w-4 h-4" /> {players.length === 1 ? 'Add Pokémon' : 'Add Soul Link'}
                 </Button>
                 <span className="text-xs text-text-muted">
-                  {inPartyCount} soul link{inPartyCount !== 1 ? 's' : ''} in party
+                  {players.length === 1
+                    ? `${inPartyCount} Pokémon in party`
+                    : `${inPartyCount} soul link${inPartyCount !== 1 ? 's' : ''} in party`}
                   {availableCount > 0 && ` · ${availableCount} available`}
                 </span>
                 <div className="ml-auto flex items-center gap-2">
@@ -1693,7 +1698,7 @@ export function PartyTracker() {
         {/* ── Suggestions tab ── */}
         <TabContent value="suggestions" className="p-4 space-y-3">
           {activeLinks.length === 0 ? (
-            <p className="text-sm text-text-muted">No active soul links yet.</p>
+            <p className="text-sm text-text-muted">{players.length === 1 ? 'No Pokémon in party yet.' : 'No active soul links yet.'}</p>
           ) : (
             <BestCombosSection
               activeLinks={activeLinks}

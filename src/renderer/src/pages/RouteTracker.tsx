@@ -695,10 +695,12 @@ export function RouteTracker() {
               <Card className="border-accent-teal/40 bg-accent-teal/5">
                 <CardContent className="py-2 flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-accent-teal" />
-                  <span className="text-xs text-accent-teal font-medium">Soul Linked</span>
-                  <span className="text-xs text-text-muted">
-                    All {players.length} players caught — soul link formed automatically
-                  </span>
+                  <span className="text-xs text-accent-teal font-medium">{players.length === 1 ? 'Caught' : 'Soul Linked'}</span>
+                  {players.length > 1 && (
+                    <span className="text-xs text-text-muted">
+                      All {players.length} players caught — soul link formed automatically
+                    </span>
+                  )}
                 </CardContent>
               </Card>
             )}
@@ -730,8 +732,8 @@ export function RouteTracker() {
               <div className="flex items-end gap-2">
                 <div className="flex-1">
                   <Input
-                    label="Soul Link Nickname (shared)"
-                    placeholder="Nickname for all Pokémon in this link"
+                    label={players.length === 1 ? 'Nickname' : 'Soul Link Nickname (shared)'}
+                    placeholder={players.length === 1 ? 'Nickname' : 'Nickname for all Pokémon in this link'}
                     value={linkNickname}
                     onChange={(e) => setLinkNickname(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSaveNickname()}

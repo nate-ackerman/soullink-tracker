@@ -8,7 +8,7 @@
 
 /** Configuration rules for a run. Stored as JSON in the runs.ruleset column. */
 export interface Ruleset {
-  playerCount: 2 | 3 | 4
+  playerCount: 1 | 2 | 3 | 4
   typeOverlap: boolean           // Whether type-overlap restrictions are active
   dupeClause: boolean            // Can't catch the same species twice per player
   speciesClause: boolean         // Only one of each species across all players

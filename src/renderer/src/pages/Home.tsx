@@ -283,7 +283,7 @@ export function Home() {
     setTimeout(() => setCodeCopied(false), 2000)
   }
 
-  function updatePlayerCount(count: 2 | 3 | 4) {
+  function updatePlayerCount(count: 1 | 2 | 3 | 4) {
     const players: { name: string; color: string }[] = []
     for (let i = 0; i < count; i++) {
       players.push(
@@ -435,7 +435,7 @@ export function Home() {
               <h3 className="text-sm font-semibold text-text-primary">Basic Info</h3>
               <Input
                 label="Run Name"
-                placeholder="e.g. 'Emerald Soul Link with Jake'"
+                placeholder={wizardData.playerCount === 1 ? "e.g. 'Emerald Nuzlocke'" : "e.g. 'Emerald Soul Link with Jake'"}
                 value={wizardData.name}
                 onChange={(e) => setWizardData((d) => ({ ...d, name: e.target.value }))}
               />
@@ -449,7 +449,7 @@ export function Home() {
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-medium text-text-secondary">Number of Players</label>
                 <div className="flex gap-2">
-                  {([2, 3, 4] as const).map((n) => (
+                  {([1, 2, 3, 4] as const).map((n) => (
                     <button
                       key={n}
                       onClick={() => updatePlayerCount(n)}
@@ -464,15 +464,17 @@ export function Home() {
                   ))}
                 </div>
               </div>
-              <div className="border-t border-border/50 pt-3">
-                <Switch
-                  id="collaborative"
-                  checked={collaborative}
-                  onCheckedChange={setCollaborative}
-                  label="Collaborative run"
-                  description="Sync this run to the cloud so others can join with a code and see updates in real time."
-                />
-              </div>
+              {wizardData.playerCount > 1 && (
+                <div className="border-t border-border/50 pt-3">
+                  <Switch
+                    id="collaborative"
+                    checked={collaborative}
+                    onCheckedChange={setCollaborative}
+                    label="Collaborative run"
+                    description="Sync this run to the cloud so others can join with a code and see updates in real time."
+                  />
+                </div>
+              )}
             </div>
           )}
 

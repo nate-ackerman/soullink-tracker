@@ -689,7 +689,7 @@ export function RunDashboard() {
 
         {/* Right column: parties */}
         <div className="space-y-3">
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Parties</p>
+          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">{players.length === 1 ? 'Party' : 'Parties'}</p>
           {(() => {
             const partyCatchIds = new Set(partySlots.map((ps) => ps.catch_id))
             const inPartyLinks = activeLinks

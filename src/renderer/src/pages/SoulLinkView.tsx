@@ -176,7 +176,7 @@ function LinkRow({ link, catches, players, routeName, levelCap, onMarkDeath, onR
           {isBroken && (
             <p className="mt-2 w-full py-1.5 text-[11px] rounded border border-transparent text-red-400/70 flex items-center justify-center gap-1">
               <Skull className="w-2.5 h-2.5" />
-              All Pokémon in this soul link are unusable going forward.
+              {players.length === 1 ? 'This Pokémon is unusable going forward.' : 'All Pokémon in this soul link are unusable going forward.'}
             </p>
           )}
 
@@ -425,7 +425,7 @@ export function SoulLinkView() {
         <div className="bg-card border border-border rounded-lg px-4 py-2 flex items-center gap-2">
           <Link2 className="w-4 h-4 text-accent-teal" />
           <span className="text-sm font-medium text-text-primary">{stats.total}</span>
-          <span className="text-xs text-text-muted">Total Links</span>
+          <span className="text-xs text-text-muted">{players.length === 1 ? 'Total Caught' : 'Total Links'}</span>
         </div>
         <div className="bg-card border border-border rounded-lg px-4 py-2 flex items-center gap-2">
           <CheckCircle className="w-4 h-4 text-green-400" />
@@ -478,14 +478,16 @@ export function SoulLinkView() {
           <Link2 className="w-10 h-10 text-text-muted mx-auto mb-2 opacity-40" />
           <p className="text-text-secondary text-sm">
             {soulLinks.length === 0
-              ? 'No soul links yet'
+              ? (players.length === 1 ? 'No Pokémon yet' : 'No soul links yet')
               : searchQuery
               ? 'No links match your search'
               : `No ${filter} links`}
           </p>
           {soulLinks.length === 0 && (
             <p className="text-text-muted text-xs mt-1">
-              When all players catch on the same route, a soul link forms automatically
+              {players.length === 1
+                ? 'Catch Pokémon on routes to get started'
+                : 'When all players catch on the same route, a soul link forms automatically'}
             </p>
           )}
         </div>

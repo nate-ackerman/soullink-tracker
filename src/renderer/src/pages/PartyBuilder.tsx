@@ -84,12 +84,12 @@ function TypeCoverageMatrix({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           Type Coverage
-          <span className="text-xs text-text-muted font-normal">(based on selected soul links)</span>
+          <span className="text-xs text-text-muted font-normal">{players.length === 1 ? '(based on selected Pokémon)' : '(based on selected soul links)'}</span>
         </CardTitle>
       </CardHeader>
       <CardContent>
         {selectedLinks.length === 0 ? (
-          <p className="text-xs text-text-muted">Select soul links above to see type coverage</p>
+          <p className="text-xs text-text-muted">{players.length === 1 ? 'Select Pokémon above to see type coverage' : 'Select soul links above to see type coverage'}</p>
         ) : (
           <TypeCoverageTable players={players} teamByPlayer={teamByPlayer} allTypes={allTypes} catches={catches} generation={generation} />
         )}
@@ -271,8 +271,9 @@ export function PartyBuilder() {
       <div className="flex items-start gap-2 bg-card border border-border rounded-lg p-3">
         <Info className="w-4 h-4 text-text-muted mt-0.5 shrink-0" />
         <p className="text-xs text-text-muted">
-          Select up to 6 active soul links to plan your party. Only Pokémon you've caught
-          that are part of an active soul link are shown. Type coverage is calculated across all players.
+          {players.length === 1
+            ? 'Select up to 6 caught Pokémon to plan your party.'
+            : "Select up to 6 active soul links to plan your party. Only Pokémon you've caught that are part of an active soul link are shown. Type coverage is calculated across all players."}
         </p>
       </div>
 
@@ -280,7 +281,7 @@ export function PartyBuilder() {
         {/* Available soul links */}
         <div className="space-y-2">
           <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
-            Available Soul Links
+            {players.length === 1 ? 'Available Pokémon' : 'Available Soul Links'}
             <span className="ml-2 text-text-muted font-normal normal-case">
               {selectedIds.size}/6 selected
             </span>
@@ -288,8 +289,8 @@ export function PartyBuilder() {
           {activeLinks.length === 0 ? (
             <div className="text-center py-8 border border-dashed border-border rounded-lg">
               <Link2 className="w-8 h-8 text-text-muted mx-auto mb-2 opacity-40" />
-              <p className="text-sm text-text-secondary">No active soul links</p>
-              <p className="text-xs text-text-muted mt-1">Catch Pokémon on routes to form soul links</p>
+              <p className="text-sm text-text-secondary">{players.length === 1 ? 'No Pokémon caught yet' : 'No active soul links'}</p>
+              <p className="text-xs text-text-muted mt-1">{players.length === 1 ? 'Catch Pokémon on routes to get started' : 'Catch Pokémon on routes to form soul links'}</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -314,8 +315,8 @@ export function PartyBuilder() {
           </h3>
           {selectedLinks.length === 0 ? (
             <div className="text-center py-8 border border-dashed border-border rounded-lg">
-              <p className="text-sm text-text-secondary">No links selected</p>
-              <p className="text-xs text-text-muted mt-1">Select soul links from the left panel</p>
+              <p className="text-sm text-text-secondary">None selected</p>
+              <p className="text-xs text-text-muted mt-1">{players.length === 1 ? 'Select Pokémon from the left panel' : 'Select soul links from the left panel'}</p>
             </div>
           ) : (
             <div className="space-y-2">
