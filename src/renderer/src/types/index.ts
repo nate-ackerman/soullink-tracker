@@ -24,6 +24,11 @@ export interface Ruleset {
 
   guaranteedEvolutionLevel?: number | null  // All Pokémon are treated as fully evolved at this level
 
+  // Battle settings
+  hideNonImportantBattles?: boolean     // Only show gym/elite4/champion in battle UI
+  skipNonImportantLevelCaps?: boolean   // Apply next important cap, not next sequential cap
+  allowFreeProgressionBattle?: boolean  // User can pick any uncompleted battle as upcoming
+
   // Encounter customization (stored per-run, applied when rendering the route list)
   hiddenEncounters?: string[]                        // Route IDs to hide from the encounter list
   addedEncounters?: { id: string; name: string }[]  // User-defined extra encounter slots

@@ -70,6 +70,15 @@ export function Settings() {
   const existingGuaranteed = activeRun?.ruleset.guaranteedEvolutionLevel ?? null
   const [guaranteedEvoEnabled, setGuaranteedEvoEnabled] = useState(existingGuaranteed !== null)
   const [guaranteedEvoLevel, setGuaranteedEvoLevel] = useState(existingGuaranteed ?? 36)
+  const [hideNonImportantBattles, setHideNonImportantBattles] = useState(
+    activeRun?.ruleset.hideNonImportantBattles ?? false
+  )
+  const [skipNonImportantLevelCaps, setSkipNonImportantLevelCaps] = useState(
+    activeRun?.ruleset.skipNonImportantLevelCaps ?? false
+  )
+  const [allowFreeProgressionBattle, setAllowFreeProgressionBattle] = useState(
+    activeRun?.ruleset.allowFreeProgressionBattle ?? false
+  )
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [exporting, setExporting] = useState(false)
@@ -83,7 +92,10 @@ export function Settings() {
     maxSharedTypeCount !== (activeRun.ruleset.maxSharedTypeCount ?? 0) ||
     maxSameTeamTypeCount !== (activeRun.ruleset.maxSameTeamTypeCount ?? 0) ||
     trainerLevelModifier !== (activeRun.ruleset.trainerLevelModifier ?? 100) ||
-    currentGuaranteed !== (activeRun.ruleset.guaranteedEvolutionLevel ?? null)
+    currentGuaranteed !== (activeRun.ruleset.guaranteedEvolutionLevel ?? null) ||
+    hideNonImportantBattles !== (activeRun.ruleset.hideNonImportantBattles ?? false) ||
+    skipNonImportantLevelCaps !== (activeRun.ruleset.skipNonImportantLevelCaps ?? false) ||
+    allowFreeProgressionBattle !== (activeRun.ruleset.allowFreeProgressionBattle ?? false)
 
   // When cross-team limit decreases, clamp per-team limit so it never exceeds it
   function handleMaxSharedChange(v: number) {
@@ -97,7 +109,7 @@ export function Settings() {
     try {
       await api.runs.update(activeRun!.id, {
         name: runName.trim(),
-        ruleset: { ...activeRun!.ruleset, maxSharedTypeCount, maxSameTeamTypeCount, trainerLevelModifier, guaranteedEvolutionLevel: currentGuaranteed },
+        ruleset: { ...activeRun!.ruleset, maxSharedTypeCount, maxSameTeamTypeCount, trainerLevelModifier, guaranteedEvolutionLevel: currentGuaranteed, hideNonImportantBattles, skipNonImportantLevelCaps, allowFreeProgressionBattle },
       })
       if (activeRunId) await loadRunData(activeRunId)
       setSaved(true)
@@ -237,6 +249,38 @@ export function Settings() {
               />
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Battle settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Battle Settings</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Switch
+            id="hide-non-important"
+            checked={hideNonImportantBattles}
+            onCheckedChange={setHideNonImportantBattles}
+            label="Hide non-important battles"
+            description="Only show Gym Leaders, Elite Four, and the Champion in the battle list. Rivals, bosses, and other fights are hidden."
+          />
+          <div className="border-t border-border/50" />
+          <Switch
+            id="skip-non-important-caps"
+            checked={skipNonImportantLevelCaps}
+            onCheckedChange={setSkipNonImportantLevelCaps}
+            label="Apply only important battle level caps"
+            description="When the next battle is a rival or boss, apply the next Gym Leader/E4/Champion cap instead of that rival's cap."
+          />
+          <div className="border-t border-border/50" />
+          <Switch
+            id="free-progression"
+            checked={allowFreeProgressionBattle}
+            onCheckedChange={setAllowFreeProgressionBattle}
+            label="Free progression"
+            description="Allows selecting any uncompleted battle as the upcoming one instead of strictly the next in order."
+          />
         </CardContent>
       </Card>
 

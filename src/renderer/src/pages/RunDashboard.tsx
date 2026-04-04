@@ -278,6 +278,9 @@ function MarkDeathModal({ activeLinks, prefillRoute, onConfirm, onClose }: MarkD
   )
 }
 
+const isImportant = (g: { kind?: string }) =>
+  !g.kind || ['gym', 'elite4', 'champion'].includes(g.kind)
+
 // ── Main Dashboard ─────────────────────────────────────────────────────────────
 
 export function RunDashboard() {
@@ -291,6 +294,7 @@ export function RunDashboard() {
 
   const [showDeathModal, setShowDeathModal] = useState(false)
   const [deathPrefillRoute, setDeathPrefillRoute] = useState<string | undefined>()
+  const [freeProgressionTarget, setFreeProgressionTarget] = useState<string | null>(null)
 
   useEffect(() => {
     if (activeRunId) loadRunData(activeRunId)
@@ -305,17 +309,25 @@ export function RunDashboard() {
     if (leaders.length === 0) return
     const adj = (base: number) => Math.round(base * modifier / 100)
 
-    // Use victory count as a position index into the sorted leader list.
-    // This correctly handles duplicate level caps and same-named leaders.
     const completedCount = battleRecords.filter((b) => b.outcome === 'victory').length
-    const next = leaders[completedCount]
-    if (next) {
-      setLevelCap(adj(next.levelCap))
+
+    let capLeader = (activeRun.ruleset.allowFreeProgressionBattle && freeProgressionTarget)
+      ? leaders.find((g) => g.name === freeProgressionTarget) ?? leaders[completedCount]
+      : leaders[completedCount]
+
+    if (activeRun.ruleset.skipNonImportantLevelCaps && capLeader && !isImportant(capLeader)) {
+      const capIdx = leaders.indexOf(capLeader)
+      const importantNext = leaders.slice(capIdx).find(isImportant)
+      if (importantNext) capLeader = importantNext
+    }
+
+    if (capLeader) {
+      setLevelCap(adj(capLeader.levelCap))
     } else if (leaders.length > 0) {
       // All fights done — hold at the champion's cap
       setLevelCap(adj(leaders[leaders.length - 1].levelCap))
     }
-  }, [activeRunId, battleRecords])
+  }, [activeRunId, battleRecords, freeProgressionTarget, activeRun?.ruleset.skipNonImportantLevelCaps, activeRun?.ruleset.allowFreeProgressionBattle])
 
   if (!activeRun) {
     return (
@@ -335,12 +347,29 @@ export function RunDashboard() {
   const gymLeaders = [...(gameInfo?.gymLeaders ?? [])].sort((a, b) => a.levelCap - b.levelCap)
   const adjustedCap = (base: number) => Math.round(base * modifier / 100)
 
-  const pendingBattle = battleRecords.find((b) => b.outcome === 'pending') ?? null
-  const pastBattles = battleRecords.filter((b) => b.outcome === 'victory')
+  const visibleLeaders = activeRun.ruleset.hideNonImportantBattles
+    ? gymLeaders.filter(isImportant)
+    : gymLeaders
 
-  // Next gym: index by victory count — handles duplicate level caps and same-named leaders correctly
+  const pendingBattle = battleRecords.find((b) => b.outcome === 'pending') ?? null
+
+  // Total victories (used for route-bar gating and level-cap useEffect — always full list)
   const completedCount = battleRecords.filter((b) => b.outcome === 'victory').length
-  const nextGym = gymLeaders[completedCount] ?? null
+
+  // When hiding non-important battles, index into visibleLeaders by important-only victory count
+  const visibleCompletedCount = activeRun.ruleset.hideNonImportantBattles
+    ? battleRecords.filter((b) => {
+        const leader = gymLeaders.find((g) => g.name === b.gym_leader_name)
+        return b.outcome === 'victory' && leader && isImportant(leader)
+      }).length
+    : completedCount
+
+  const nextGym = (() => {
+    if (activeRun.ruleset.allowFreeProgressionBattle && freeProgressionTarget) {
+      return visibleLeaders.find((g) => g.name === freeProgressionTarget) ?? visibleLeaders[visibleCompletedCount] ?? null
+    }
+    return visibleLeaders[visibleCompletedCount] ?? null
+  })()
 
   // Route progress stats
   const allRoutes: RouteInfo[] = [
@@ -432,6 +461,7 @@ export function RunDashboard() {
     if (!pendingBattle || !activeRunId) return
     optimisticUpdateBattle(pendingBattle.id, { outcome: 'victory', completed_at: new Date().toISOString() })
     await api.battles.update(pendingBattle.id, { outcome: 'victory' })
+    setFreeProgressionTarget(null)
     await refreshBattles()
     // Auto-fail the run if every party slot is dead after the battle
     const allPartyDead = partySlots.length > 0 && partySlots.every((ps) => {
@@ -602,12 +632,28 @@ export function RunDashboard() {
                     </button>
                   </div>
                 ) : (
-                  <button
-                    onClick={handleLockIn}
-                    className="w-full py-2 text-xs rounded border border-accent-gold/30 bg-accent-gold/10 text-accent-gold hover:bg-accent-gold/20 transition-colors flex items-center justify-center gap-1.5"
-                  >
-                    <Lock className="w-3 h-3" /> Lock in Party
-                  </button>
+                  <>
+                    {activeRun.ruleset.allowFreeProgressionBattle && (
+                      <select
+                        value={freeProgressionTarget ?? nextGym?.name ?? ''}
+                        onChange={(e) => setFreeProgressionTarget(e.target.value)}
+                        className="w-full mb-2 text-xs bg-elevated border border-border rounded px-2 py-1.5 text-text-primary focus:outline-none focus:border-border-light"
+                      >
+                        {visibleLeaders
+                          .filter((g) => !battleRecords.some((b) => b.outcome === 'victory' && b.gym_leader_name === g.name))
+                          .map((g, i) => (
+                            <option key={i} value={g.name}>{g.name}</option>
+                          ))
+                        }
+                      </select>
+                    )}
+                    <button
+                      onClick={handleLockIn}
+                      className="w-full py-2 text-xs rounded border border-accent-gold/30 bg-accent-gold/10 text-accent-gold hover:bg-accent-gold/20 transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      <Lock className="w-3 h-3" /> Lock in Party
+                    </button>
+                  </>
                 )}
               </CardContent>
             </Card>
@@ -624,12 +670,12 @@ export function RunDashboard() {
           )}
 
           {/* Upcoming fights */}
-          {gymLeaders.length > completedCount && (
+          {visibleLeaders.length > visibleCompletedCount && (
             <Card>
               <CardContent className="py-3">
                 <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">Upcoming Fights</p>
                 <div className="space-y-1">
-                  {gymLeaders.slice(completedCount).map((leader, i) => (
+                  {visibleLeaders.slice(visibleCompletedCount).map((leader, i) => (
                     <div key={`upcoming-${i}`} className="flex items-center gap-2 px-1 py-1">
                       <TrainerSprite name={leader.name} size={28} />
                       <div className="min-w-0 flex-1">
