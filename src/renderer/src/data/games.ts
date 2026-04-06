@@ -535,7 +535,7 @@ const gen4HGSSGyms: GymLeader[] = [
   { name: 'Blaine', city: 'Cinnabar Island', badge: 'Volcano Badge', levelCap: 59, types: ['fire'] },
   { name: 'Silver', city: 'Mt. Moon', badge: 'Rival', levelCap: 50, types: [], kind: 'rival' },
   { name: 'Blue', city: 'Viridian City', badge: 'Earth Badge', levelCap: 60, types: ['normal'] },
-  { name: 'Red', city: 'Mt. Silver', badge: 'Final Boss', levelCap: 88, types: [], kind: 'champion' },
+  { name: 'Red', city: 'Mt. Silver', badge: 'Final Boss', levelCap: 81, types: [], kind: 'champion' },
 ]
 
 // ── Gen 3 (RSE) ───────────────────────────────────────────────────────────────
@@ -1335,7 +1335,7 @@ const gen6XYCheckpoints: GymLeader[] = [
     ],
   },
   {
-    name: 'Viola', city: 'Santalune City', badge: 'Bug Badge', levelCap: 15, types: ['bug'],
+    name: 'Viola', city: 'Santalune City', badge: 'Bug Badge', levelCap: 12, types: ['bug'],
     locations: [
       { id: 'route-22-kalos', name: 'Route 22', order: 4 },
       { id: 'route-4-kalos', name: 'Route 4', order: 5 },
@@ -1362,7 +1362,7 @@ const gen6XYCheckpoints: GymLeader[] = [
     ],
   },
   {
-    name: 'Korrina', city: 'Shalour City', badge: 'Rumble Badge', levelCap: 35, types: ['fighting'],
+    name: 'Korrina', city: 'Shalour City', badge: 'Rumble Badge', levelCap: 32, types: ['fighting'],
     locations: [
       { id: 'route-13-kalos', name: 'Route 13', order: 21 },
       { id: 'route-14-kalos', name: 'Route 14', order: 22 },
@@ -1374,14 +1374,14 @@ const gen6XYCheckpoints: GymLeader[] = [
     ],
   },
   {
-    name: 'Ramos', city: 'Coumarine City', badge: 'Plant Badge', levelCap: 39, types: ['grass'],
+    name: 'Ramos', city: 'Coumarine City', badge: 'Plant Badge', levelCap: 34, types: ['grass'],
     locations: [
       { id: 'route-18-kalos', name: 'Route 18', order: 28 },
       { id: 'sea-spirit-den', name: 'Sea Spirit\'s Den', order: 29 },
     ],
   },
   {
-    name: 'Clemont', city: 'Lumiose City', badge: 'Voltage Badge', levelCap: 45, types: ['electric'],
+    name: 'Clemont', city: 'Lumiose City', badge: 'Voltage Badge', levelCap: 37, types: ['electric'],
     locations: [
       { id: 'pokemon-village', name: 'Pokémon Village', order: 30 },
       { id: 'route-19-kalos', name: 'Route 19', order: 31 },
@@ -1389,13 +1389,13 @@ const gen6XYCheckpoints: GymLeader[] = [
     ],
   },
   {
-    name: 'Valerie', city: 'Laverre City', badge: 'Fairy Badge', levelCap: 49, types: ['fairy'],
+    name: 'Valerie', city: 'Laverre City', badge: 'Fairy Badge', levelCap: 42, types: ['fairy'],
     locations: [
       { id: 'route-21-kalos', name: 'Route 21', order: 33 },
     ],
   },
   {
-    name: 'Olympia', city: 'Anistar City', badge: 'Psychic Badge', levelCap: 55, types: ['psychic'],
+    name: 'Olympia', city: 'Anistar City', badge: 'Psychic Badge', levelCap: 48, types: ['psychic'],
     locations: [
       { id: 'route-16-kalos-upper', name: 'Route 16 (upper area)', order: 34 },
     ],
@@ -1407,19 +1407,19 @@ const gen6XYCheckpoints: GymLeader[] = [
     ],
   },
   {
-    name: 'Malva', city: 'Pokémon League', badge: 'Elite Four', levelCap: 63, types: ['fire'], kind: 'elite4',
+    name: 'Malva', city: 'Pokémon League', badge: 'Elite Four', levelCap: 65, types: ['fire'], kind: 'elite4',
     locations: [],
   },
   {
-    name: 'Siebold', city: 'Pokémon League', badge: 'Elite Four', levelCap: 63, types: ['water'], kind: 'elite4',
+    name: 'Siebold', city: 'Pokémon League', badge: 'Elite Four', levelCap: 65, types: ['water'], kind: 'elite4',
     locations: [],
   },
   {
-    name: 'Wikstrom', city: 'Pokémon League', badge: 'Elite Four', levelCap: 63, types: ['steel'], kind: 'elite4',
+    name: 'Wikstrom', city: 'Pokémon League', badge: 'Elite Four', levelCap: 65, types: ['steel'], kind: 'elite4',
     locations: [],
   },
   {
-    name: 'Drasna', city: 'Pokémon League', badge: 'Elite Four', levelCap: 63, types: ['dragon'], kind: 'elite4',
+    name: 'Drasna', city: 'Pokémon League', badge: 'Elite Four', levelCap: 65, types: ['dragon'], kind: 'elite4',
     locations: [],
   },
   {
