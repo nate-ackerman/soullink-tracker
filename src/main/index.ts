@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow } from 'electron'
+import { app, shell, BrowserWindow, session } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerIpcHandlers } from './ipc'
@@ -46,6 +46,15 @@ app.whenReady().then(() => {
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
+
+  // Inject Referer header for img.nuzlocke.app so trainer images load correctly
+  session.defaultSession.webRequest.onBeforeSendHeaders(
+    { urls: ['https://img.nuzlocke.app/*'] },
+    (details, callback) => {
+      details.requestHeaders['Referer'] = 'https://nuzlocke.vercel.app/'
+      callback({ requestHeaders: details.requestHeaders })
+    }
+  )
 
   // Initialize DB
   getDb()

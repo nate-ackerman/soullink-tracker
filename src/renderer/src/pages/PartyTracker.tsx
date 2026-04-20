@@ -18,6 +18,9 @@ import type { PokemonData, PokemonSpeciesData, EvolutionChainData } from '../api
 import { formatPokemonName } from '../utils/cn'
 import { resolveEvolutionAtLevel, resolveFullEvolution } from '../utils/evolutionUtils'
 import { getTypeMatchups, getTypesForGeneration } from '../data/typeColors'
+import { getGameById } from '../data/games'
+import { TrainerImage } from '../components/pokemon/TrainerImage'
+import type { GymLeader } from '../data/games'
 import type { Catch, Player, SoulLink, PartySlot, BattleRecord, SavedParty } from '../types'
 
 // Rating thresholds based on net-weak type count (weaknesses.length after netting)
@@ -1347,53 +1350,6 @@ function PartySnapshotRows({ snapshot, catches, players }: {
   )
 }
 
-// ── Trainer sprite (shared with Dashboard) ────────────────────────────────────
-
-const TRAINER_SPRITE_OVERRIDES: Record<string, string> = {
-  'Kimono Girls': 'kimonogirl',
-  'Jessie & James': 'jessiejames-gen1',
-  'Lorelei': 'lorelei-gen3',
-  'Agatha': 'agatha-gen3',
-  'Maxie': 'maxie-gen3',
-  'Archie': 'archie-gen3',
-  'Phoebe': 'phoebe-gen3',
-  'Drake': 'drake-gen3',
-}
-
-function getSpriteCandidates(name: string): string[] {
-  // Check override with full name first, then with just the primary (before & or /)
-  if (TRAINER_SPRITE_OVERRIDES[name]) return [TRAINER_SPRITE_OVERRIDES[name]]
-  const primaryRaw = name.split(/[&/]/)[0].trim()
-  if (TRAINER_SPRITE_OVERRIDES[primaryRaw]) return [TRAINER_SPRITE_OVERRIDES[primaryRaw]]
-  const primary = primaryRaw
-    .toLowerCase()
-    .replace(/\./g, '')
-    .replace(/[^a-z0-9 ]/g, '')
-    .trim()
-  const words = primary.split(/\s+/).filter(Boolean)
-  if (words.length <= 1) return words
-  // 1. all special chars stripped with no separator (e.g. "ltsurge")
-  // 2. full hyphenated name (e.g. "lt-surge")
-  // 3. each word individually (e.g. "lt", "surge")
-  return [...new Set([words.join(''), words.join('-'), ...words])]
-}
-
-function TrainerSprite({ name, size = 40 }: { name: string; size?: number }) {
-  const candidates = useMemo(() => getSpriteCandidates(name), [name])
-  const [index, setIndex] = useState(0)
-  if (index >= candidates.length) return null
-  return (
-    <img
-      src={`https://play.pokemonshowdown.com/sprites/trainers/${candidates[index]}.png`}
-      alt={name}
-      width={size}
-      height={size}
-      style={{ imageRendering: 'pixelated', objectFit: 'contain' }}
-      onError={() => setIndex((i) => i + 1)}
-    />
-  )
-}
-
 // ── Past Battle Parties ───────────────────────────────────────────────────────
 
 function PastBattlePartiesSection({
@@ -1401,12 +1357,14 @@ function PastBattlePartiesSection({
   catches,
   players,
   runId,
+  gymLeaders,
   onLoaded,
 }: {
   battleRecords: BattleRecord[]
   catches: Catch[]
   players: Player[]
   runId: string
+  gymLeaders: GymLeader[]
   onLoaded: () => void
 }) {
   const [loading, setLoading] = useState<string | null>(null)
@@ -1461,7 +1419,7 @@ function PastBattlePartiesSection({
           <div key={key} className="p-3 rounded-lg bg-elevated border border-border">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
-                <TrainerSprite name={rep.gym_leader_name} size={32} />
+                <TrainerImage imageUrl={gymLeaders.find((g) => g.name === rep.gym_leader_name)?.imageUrl} name={rep.gym_leader_name} size={32} />
                 <p className="text-xs font-semibold text-text-primary">
                   {battles.map((b) => `${b.gym_leader_name} (Lv.${b.level_cap})`).join(', ')}
                 </p>
@@ -1744,6 +1702,7 @@ export function PartyTracker() {
               catches={catches}
               players={players}
               runId={activeRun.id}
+              gymLeaders={getGameById(activeRun.game)?.gymLeaders ?? []}
               onLoaded={handleAdded}
             />
           )}

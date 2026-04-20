@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { AlertTriangle, CheckCircle } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card'
 import { TypeBadge } from '../components/pokemon/TypeBadge'
 import { PokemonSprite } from '../components/pokemon/PokemonSprite'
+import { TrainerTeamModal } from '../components/pokemon/TrainerTeamModal'
+import { TrainerImage } from '../components/pokemon/TrainerImage'
 import { useAppStore } from '../store/appStore'
 import { getGameById } from '../data/games'
 import { usePokemonById, getPokemonTypes } from '../api/pokeapi'
@@ -39,6 +41,9 @@ export function BattlePrep() {
   const { activeRun, catches, players, partySlots, levelCap } = useAppStore()
   const displayLevel = levelCap ?? 5
   const [selectedGym, setSelectedGym] = useState<GymLeaderType | null>(null)
+  const [showTeamModal, setShowTeamModal] = useState(false)
+
+  useEffect(() => { setShowTeamModal(false) }, [selectedGym?.name, selectedGym?.city])
 
   if (!activeRun) return <div className="p-6 text-text-muted">No active run</div>
 
@@ -103,7 +108,9 @@ export function BattlePrep() {
             <Card className="border-accent-gold/30 bg-accent-gold/5">
               <CardContent className="py-4">
                 <div className="flex items-start justify-between">
-                  <div>
+                  <div className="flex items-start gap-3">
+                    <TrainerImage imageUrl={selectedGym.imageUrl} name={selectedGym.name} size={72} className="shrink-0 mt-0.5" />
+                    <div>
                     <h2 className="text-lg font-bold text-text-primary">{selectedGym.name}</h2>
                     <p className="text-sm text-text-muted">
                       {selectedGym.kind === 'rival' ? `Rival — ${selectedGym.city}`
@@ -114,6 +121,7 @@ export function BattlePrep() {
                         : `${selectedGym.city} Gym`}
                     </p>
                     <p className="text-sm text-accent-gold">{selectedGym.badge}</p>
+                    </div>
                   </div>
                   <div className="text-right">
                     <p className="text-2xl font-bold text-accent-gold">Lv. {adjustedCap(selectedGym.levelCap)}</p>
@@ -127,8 +135,26 @@ export function BattlePrep() {
                   <span className="text-xs text-text-muted">Type:</span>
                   {selectedGym.types.map((t) => <TypeBadge key={t} type={t} />)}
                 </div>
+                {selectedGym.team && selectedGym.team.length > 0 && (
+                  <button
+                    onClick={() => setShowTeamModal(true)}
+                    className="mt-3 text-xs text-accent-teal hover:underline"
+                  >
+                    View Team →
+                  </button>
+                )}
               </CardContent>
             </Card>
+            {selectedGym.team && selectedGym.team.length > 0 && (
+              <TrainerTeamModal
+                open={showTeamModal}
+                onOpenChange={setShowTeamModal}
+                leader={selectedGym}
+                modifier={modifier}
+                gameId={activeRun.game}
+                generation={activeRun.generation}
+              />
+            )}
 
             <div className="flex items-center gap-2 py-2">
               <AlertTriangle className="w-4 h-4 text-accent-gold" />

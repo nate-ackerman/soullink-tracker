@@ -220,6 +220,26 @@ export function usePokemonSpeciesBatch(names: string[]): Map<string, PokemonSpec
   return map
 }
 
+// Batch-fetch Pokémon by name. Uses the same ['pokemon', name] query key as usePokemonByName,
+// so the cache is shared. Returns a map of name (lowercase) → PokemonData.
+export function usePokemonByNameBatch(names: string[]): Map<string, PokemonData> {
+  const results = useQueries({
+    queries: names.map((name) => ({
+      queryKey: ['pokemon', name.toLowerCase()],
+      queryFn: () => fetchJson<PokemonData>(`${BASE_URL}/pokemon/${name.toLowerCase()}`),
+      staleTime: Infinity,
+      enabled: !!name,
+      retry: 1,
+    })),
+  })
+  const map = new Map<string, PokemonData>()
+  names.forEach((name, i) => {
+    const data = results[i]?.data
+    if (data) map.set(name.toLowerCase(), data)
+  })
+  return map
+}
+
 export interface LearnsetMove {
   name: string
   url: string

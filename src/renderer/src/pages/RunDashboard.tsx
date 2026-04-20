@@ -11,55 +11,12 @@ import { useApi } from '../lib/useApi'
 import { getGameById } from '../data/games'
 import { usePokemonSpecies, useEvolutionChain, usePokemonByName } from '../api/pokeapi'
 import { resolveEvolutionAtLevel } from '../utils/evolutionUtils'
+import { TrainerTeamPreview } from '../components/pokemon/TrainerTeamPreview'
+import { TrainerTeamModal } from '../components/pokemon/TrainerTeamModal'
+import { TrainerImage } from '../components/pokemon/TrainerImage'
 import type { RouteInfo } from '../data/games'
 import type { Catch, SoulLink } from '../types'
 
-// ── Trainer sprite ────────────────────────────────────────────────────────────
-
-const TRAINER_SPRITE_OVERRIDES: Record<string, string> = {
-  'Kimono Girls': 'kimonogirl',
-  'Jessie & James': 'jessiejames-gen1',
-  'Lorelei': 'lorelei-gen3',
-  'Agatha': 'agatha-gen3',
-  'Maxie': 'maxie-gen3',
-  'Archie': 'archie-gen3',
-  'Phoebe': 'phoebe-gen3',
-  'Drake': 'drake-gen3',
-}
-
-function getSpriteCandidates(name: string): string[] {
-  // Check override with full name first, then with just the primary (before & or /)
-  if (TRAINER_SPRITE_OVERRIDES[name]) return [TRAINER_SPRITE_OVERRIDES[name]]
-  const primaryRaw = name.split(/[&/]/)[0].trim()
-  if (TRAINER_SPRITE_OVERRIDES[primaryRaw]) return [TRAINER_SPRITE_OVERRIDES[primaryRaw]]
-  const primary = primaryRaw
-    .toLowerCase()
-    .replace(/\./g, '')
-    .replace(/[^a-z0-9 ]/g, '')
-    .trim()
-  const words = primary.split(/\s+/).filter(Boolean)
-  if (words.length <= 1) return words
-  // 1. all special chars stripped with no separator (e.g. "ltsurge")
-  // 2. full hyphenated name (e.g. "lt-surge")
-  // 3. each word individually (e.g. "lt", "surge")
-  return [...new Set([words.join(''), words.join('-'), ...words])]
-}
-
-function TrainerSprite({ name, size = 40 }: { name: string; size?: number }) {
-  const candidates = useMemo(() => getSpriteCandidates(name), [name])
-  const [index, setIndex] = useState(0)
-  if (index >= candidates.length) return null
-  return (
-    <img
-      src={`https://play.pokemonshowdown.com/sprites/trainers/${candidates[index]}.png`}
-      alt={name}
-      width={size}
-      height={size}
-      style={{ imageRendering: 'pixelated', objectFit: 'contain' }}
-      onError={() => setIndex((i) => i + 1)}
-    />
-  )
-}
 
 // ── Party member cell (resolves evolution for learnset navigation) ────────────
 
@@ -295,6 +252,7 @@ export function RunDashboard() {
   const [showDeathModal, setShowDeathModal] = useState(false)
   const [deathPrefillRoute, setDeathPrefillRoute] = useState<string | undefined>()
   const [freeProgressionTarget, setFreeProgressionTarget] = useState<string | null>(null)
+  const [showTeamModal, setShowTeamModal] = useState(false)
 
   useEffect(() => {
     if (activeRunId) loadRunData(activeRunId)
@@ -586,32 +544,52 @@ export function RunDashboard() {
                   const displayCity = battle?.city ?? ''
                   const displayTypes = battle?.types ?? []
                   const displayKind = battle?.kind
+                  const displayTeam = battle?.team ?? []
 
                   return (
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <TrainerSprite name={displayName} size={48} />
-                        <div>
-                          <p className={`text-base font-bold ${
-                            displayKind === 'champion' ? 'text-accent-gold' :
-                            displayKind === 'elite4' ? 'text-purple-400' :
-                            displayKind === 'rival' ? 'text-blue-400' :
-                            displayKind === 'boss' ? 'text-red-400' :
-                            'text-text-primary'
-                          }`}>{displayName}</p>
-                          {displayCity && <p className="text-xs text-text-muted">{displayCity}</p>}
-                          {displayTypes.length > 0 && (
-                            <div className="flex gap-1 mt-1.5">
-                              {displayTypes.map((t) => <TypeBadge key={t} type={t} size="sm" />)}
-                            </div>
-                          )}
+                    <>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <TrainerImage imageUrl={battle?.imageUrl} name={displayName} size={48} />
+                          <div>
+                            <p className={`text-base font-bold ${
+                              displayKind === 'champion' ? 'text-accent-gold' :
+                              displayKind === 'elite4' ? 'text-purple-400' :
+                              displayKind === 'rival' ? 'text-blue-400' :
+                              displayKind === 'boss' ? 'text-red-400' :
+                              'text-text-primary'
+                            }`}>{displayName}</p>
+                            {displayCity && <p className="text-xs text-text-muted">{displayCity}</p>}
+                            {displayTypes.length > 0 && (
+                              <div className="flex gap-1 mt-1.5">
+                                {displayTypes.map((t) => <TypeBadge key={t} type={t} size="sm" />)}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-2xl font-bold text-accent-gold">Lv. {displayCap}</p>
+                          <p className="text-xs text-text-muted">Ace Level</p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-2xl font-bold text-accent-gold">Lv. {displayCap}</p>
-                        <p className="text-xs text-text-muted">Ace Level</p>
-                      </div>
-                    </div>
+                      {displayTeam.length > 0 && battle && (
+                        <>
+                          <TrainerTeamPreview
+                            team={displayTeam}
+                            modifier={modifier}
+                            onViewDetails={() => setShowTeamModal(true)}
+                          />
+                          <TrainerTeamModal
+                            open={showTeamModal}
+                            onOpenChange={setShowTeamModal}
+                            leader={battle}
+                            modifier={modifier}
+                            gameId={activeRun.game}
+                            generation={activeRun.generation}
+                          />
+                        </>
+                      )}
+                    </>
                   )
                 })()}
 
@@ -677,7 +655,7 @@ export function RunDashboard() {
                 <div className="space-y-1">
                   {visibleLeaders.slice(visibleCompletedCount).map((leader, i) => (
                     <div key={`upcoming-${i}`} className="flex items-center gap-2 px-1 py-1">
-                      <TrainerSprite name={leader.name} size={28} />
+                      <TrainerImage imageUrl={leader.imageUrl} name={leader.name} size={28} />
                       <div className="min-w-0 flex-1">
                         <span className="text-xs text-text-secondary font-medium">{leader.name}</span>
                         <span className="text-[10px] text-text-muted ml-1.5">Lv.{adjustedCap(leader.levelCap)}</span>

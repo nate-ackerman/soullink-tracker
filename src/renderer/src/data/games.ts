@@ -1,7 +1,18 @@
+import leagueData from './leagueData.json'
+
 export interface RouteInfo {
   id: string
   name: string
   order: number
+}
+
+export interface TrainerPokemon {
+  species: string        // PokeAPI slug (e.g. 'geodude', 'mr-mime')
+  level: number          // Raw level, before modifier scaling
+  ability?: string       // PokeAPI ability slug — omit if unknown
+  moves?: string[]       // Up to 4 PokeAPI move slugs — omit to use learnset fallback
+  heldItem?: string      // Display string (e.g. 'Sitrus Berry') — omit if none
+  starter?: string       // Player starter type this Pokémon belongs to (e.g. 'fire', 'water', 'grass') — omit if always present
 }
 
 export interface GymLeader {
@@ -13,6 +24,9 @@ export interface GymLeader {
   kind?: 'gym' | 'rival' | 'boss' | 'elite4' | 'champion' | 'other'
   /** Routes accessible before this checkpoint (gates this fight). Optional — only set for games with full checkpoint data. */
   locations?: RouteInfo[]
+  team?: TrainerPokemon[]
+  /** Path portion of trainer image URL from nuzlocke.data, e.g. '/leaders/frlg-brock'. Full URL: https://img.nuzlocke.app{imageUrl}.webp */
+  imageUrl?: string
 }
 
 export interface GameInfo {
@@ -22,6 +36,15 @@ export interface GameInfo {
   region: string
   routes: RouteInfo[]
   gymLeaders: GymLeader[]
+}
+
+interface LeagueBattle {
+  nzId: string
+  kind: GymLeader['kind']
+  name: string
+  specialty: string
+  imageUrl?: string
+  team: TrainerPokemon[]
 }
 
 // ── Gen 1 ─────────────────────────────────────────────────────────────────────
@@ -146,25 +169,38 @@ const gen1RBGyms: GymLeader[] = [
   { name: 'Blue', city: 'Pallet Town', badge: 'Rival', levelCap: 5, types: [], kind: 'rival' },
   { name: 'Blue', city: 'Route 22', badge: 'Rival', levelCap: 9, types: [], kind: 'rival' },
   { name: 'Blue', city: 'Route 24', badge: 'Rival (optional)', levelCap: 18, types: [], kind: 'rival' },
-  { name: 'Brock', city: 'Pewter City', badge: 'Boulder Badge', levelCap: 14, types: ['rock', 'ground'] },
-  { name: 'Misty', city: 'Cerulean City', badge: 'Cascade Badge', levelCap: 21, types: ['water'] },
+  { name: 'Brock', city: 'Pewter City', badge: 'Boulder Badge', levelCap: 14, types: ['rock', 'ground'],
+    team: [{ species: 'geodude', level: 12 }, { species: 'onix', level: 14 }] },
+  { name: 'Misty', city: 'Cerulean City', badge: 'Cascade Badge', levelCap: 21, types: ['water'],
+    team: [{ species: 'staryu', level: 18 }, { species: 'starmie', level: 21 }] },
   { name: 'Blue', city: 'S.S. Anne', badge: 'Rival', levelCap: 20, types: [], kind: 'rival' },
-  { name: 'Lt. Surge', city: 'Vermilion City', badge: 'Thunder Badge', levelCap: 24, types: ['electric'] },
-  { name: 'Erika', city: 'Celadon City', badge: 'Rainbow Badge', levelCap: 29, types: ['grass'] },
+  { name: 'Lt. Surge', city: 'Vermilion City', badge: 'Thunder Badge', levelCap: 24, types: ['electric'],
+    team: [{ species: 'voltorb', level: 21 }, { species: 'pikachu', level: 18 }, { species: 'raichu', level: 24 }] },
+  { name: 'Erika', city: 'Celadon City', badge: 'Rainbow Badge', levelCap: 29, types: ['grass'],
+    team: [{ species: 'victreebel', level: 29 }, { species: 'tangela', level: 24 }, { species: 'vileplume', level: 29 }] },
   { name: 'Giovanni', city: 'Rocket Hideout', badge: 'Team Rocket', levelCap: 29, types: ['ground'], kind: 'boss' },
   { name: 'Blue', city: 'Pokémon Tower', badge: 'Rival', levelCap: 25, types: [], kind: 'rival' },
-  { name: 'Koga', city: 'Fuchsia City', badge: 'Soul Badge', levelCap: 43, types: ['poison'] },
-  { name: 'Sabrina', city: 'Saffron City', badge: 'Marsh Badge', levelCap: 43, types: ['psychic'] },
+  { name: 'Koga', city: 'Fuchsia City', badge: 'Soul Badge', levelCap: 43, types: ['poison'],
+    team: [{ species: 'koffing', level: 37 }, { species: 'muk', level: 39 }, { species: 'koffing', level: 37 }, { species: 'weezing', level: 43 }] },
+  { name: 'Sabrina', city: 'Saffron City', badge: 'Marsh Badge', levelCap: 43, types: ['psychic'],
+    team: [{ species: 'kadabra', level: 38 }, { species: 'mr-mime', level: 37 }, { species: 'venomoth', level: 38 }, { species: 'alakazam', level: 43 }] },
   { name: 'Giovanni', city: 'Silph Co.', badge: 'Team Rocket', levelCap: 41, types: ['ground'], kind: 'boss' },
   { name: 'Blue', city: 'Silph Co.', badge: 'Rival', levelCap: 40, types: [], kind: 'rival' },
-  { name: 'Blaine', city: 'Cinnabar Island', badge: 'Volcano Badge', levelCap: 47, types: ['fire'] },
-  { name: 'Giovanni', city: 'Viridian City', badge: 'Earth Badge', levelCap: 50, types: ['ground'] },
+  { name: 'Blaine', city: 'Cinnabar Island', badge: 'Volcano Badge', levelCap: 47, types: ['fire'],
+    team: [{ species: 'growlithe', level: 42 }, { species: 'ponyta', level: 40 }, { species: 'rapidash', level: 42 }, { species: 'arcanine', level: 47 }] },
+  { name: 'Giovanni', city: 'Viridian City', badge: 'Earth Badge', levelCap: 50, types: ['ground'],
+    team: [{ species: 'rhyhorn', level: 45 }, { species: 'dugtrio', level: 42 }, { species: 'nidoqueen', level: 44 }, { species: 'nidoking', level: 45 }, { species: 'rhydon', level: 50 }] },
   { name: 'Blue', city: 'Route 22', badge: 'Rival (Pre-E4)', levelCap: 53, types: [], kind: 'rival' },
-  { name: 'Lorelei', city: 'Indigo Plateau', badge: 'Elite Four', levelCap: 56, types: ['ice', 'water'], kind: 'elite4' },
-  { name: 'Bruno', city: 'Indigo Plateau', badge: 'Elite Four', levelCap: 58, types: ['fighting', 'rock'], kind: 'elite4' },
-  { name: 'Agatha', city: 'Indigo Plateau', badge: 'Elite Four', levelCap: 60, types: ['ghost', 'poison'], kind: 'elite4' },
-  { name: 'Lance', city: 'Indigo Plateau', badge: 'Elite Four', levelCap: 62, types: ['dragon'], kind: 'elite4' },
-  { name: 'Blue', city: 'Indigo Plateau', badge: 'Champion', levelCap: 65, types: [], kind: 'champion' },
+  { name: 'Lorelei', city: 'Indigo Plateau', badge: 'Elite Four', levelCap: 56, types: ['ice', 'water'], kind: 'elite4',
+    team: [{ species: 'dewgong', level: 54 }, { species: 'cloyster', level: 53 }, { species: 'slowbro', level: 54 }, { species: 'jynx', level: 56 }, { species: 'lapras', level: 56 }] },
+  { name: 'Bruno', city: 'Indigo Plateau', badge: 'Elite Four', levelCap: 58, types: ['fighting', 'rock'], kind: 'elite4',
+    team: [{ species: 'onix', level: 53 }, { species: 'hitmonchan', level: 55 }, { species: 'hitmonlee', level: 55 }, { species: 'onix', level: 54 }, { species: 'machamp', level: 58 }] },
+  { name: 'Agatha', city: 'Indigo Plateau', badge: 'Elite Four', levelCap: 60, types: ['ghost', 'poison'], kind: 'elite4',
+    team: [{ species: 'gengar', level: 54 }, { species: 'haunter', level: 53 }, { species: 'gengar', level: 58 }, { species: 'arbok', level: 54 }, { species: 'gengar', level: 60 }] },
+  { name: 'Lance', city: 'Indigo Plateau', badge: 'Elite Four', levelCap: 62, types: ['dragon'], kind: 'elite4',
+    team: [{ species: 'gyarados', level: 56 }, { species: 'dragonair', level: 54 }, { species: 'dragonair', level: 54 }, { species: 'aerodactyl', level: 60 }, { species: 'dragonite', level: 62 }] },
+  { name: 'Blue', city: 'Indigo Plateau', badge: 'Champion', levelCap: 65, types: [], kind: 'champion',
+    team: [{ species: 'pidgeot', level: 59 }, { species: 'alakazam', level: 59 }, { species: 'rhydon', level: 61 }, { species: 'arcanine', level: 61 }, { species: 'exeggutor', level: 61 }, { species: 'blastoise', level: 65 }] },
 ]
 
 const gen1YellowGyms: GymLeader[] = [
@@ -1766,6 +1802,44 @@ const gen7USUMCheckpoints: GymLeader[] = [
 
 const gen7USUMRoutes: RouteInfo[] = gen7USUMCheckpoints.flatMap((cp) => cp.locations ?? [])
 
+// ── nuzlocke.data integration ─────────────────────────────────────────────────
+
+const GAME_TO_LEAGUE_KEY: Record<string, string> = {
+  red: 'rb', blue: 'rb', yellow: 'yel',
+  firered: 'frlg', leafgreen: 'frlg',
+  gold: 'gsc', silver: 'gsc', crystal: 'gsc',
+  ruby: 'rs', sapphire: 'rs', emerald: 'em',
+  diamond: 'dp', pearl: 'dp', platinum: 'plat',
+  heartgold: 'hgss', soulsilver: 'hgss',
+  black: 'bw', white: 'bw', black2: 'b2w2', white2: 'b2w2',
+  x: 'xy', y: 'xy', 'omega-ruby': 'oras', 'alpha-sapphire': 'oras',
+  sun: 'sm', moon: 'sm', 'ultra-sun': 'usum', 'ultra-moon': 'usum',
+  sword: 'swsh', shield: 'swsh',
+  'brilliant-diamond': 'bdsp', 'shining-pearl': 'bdsp',
+  scarlet: 'sv', violet: 'sv',
+}
+
+function generateFromLeagueData(battles: LeagueBattle[]): GymLeader[] {
+  return battles
+    .map((b) => ({
+      name: b.name,
+      city: '',
+      badge: '',
+      levelCap: b.team.length > 0 ? Math.max(...b.team.map((p) => p.level)) : 0,
+      types: b.specialty ? [b.specialty] : [],
+      kind: b.kind,
+      team: b.team,
+      ...(b.imageUrl ? { imageUrl: b.imageUrl } : {}),
+    }))
+    .sort((a, b) => {
+      // Battles with no team data go last
+      if (a.levelCap === 0 && b.levelCap === 0) return 0
+      if (a.levelCap === 0) return 1
+      if (b.levelCap === 0) return -1
+      return a.levelCap - b.levelCap
+    })
+}
+
 export const GAMES: GameInfo[] = [
   // Gen 1
   { id: 'red', name: 'Pokémon Red', generation: 1, region: 'Kanto', routes: gen1Routes, gymLeaders: gen1RBGyms },
@@ -1807,18 +1881,38 @@ export const GAMES: GameInfo[] = [
   // Gen 7 USUM
   { id: 'ultra-sun', name: 'Pokémon Ultra Sun', generation: 7, region: 'Alola', routes: gen7USUMRoutes, gymLeaders: gen7USUMCheckpoints },
   { id: 'ultra-moon', name: 'Pokémon Ultra Moon', generation: 7, region: 'Alola', routes: gen7USUMRoutes, gymLeaders: gen7USUMCheckpoints },
+  // Gen 8 SwSh
+  { id: 'sword', name: 'Pokémon Sword', generation: 8, region: 'Galar', routes: [], gymLeaders: [] },
+  { id: 'shield', name: 'Pokémon Shield', generation: 8, region: 'Galar', routes: [], gymLeaders: [] },
+  // Gen 8 BDSP
+  { id: 'brilliant-diamond', name: 'Pokémon Brilliant Diamond', generation: 8, region: 'Sinnoh', routes: [], gymLeaders: [] },
+  { id: 'shining-pearl', name: 'Pokémon Shining Pearl', generation: 8, region: 'Sinnoh', routes: [], gymLeaders: [] },
+  // Gen 9 SV
+  { id: 'scarlet', name: 'Pokémon Scarlet', generation: 9, region: 'Paldea', routes: [], gymLeaders: [] },
+  { id: 'violet', name: 'Pokémon Violet', generation: 9, region: 'Paldea', routes: [], gymLeaders: [] },
 ]
 
+// Build all gym leader / battle lists from nuzlocke.data at import time.
+// Route gating (locations on each checkpoint) is handled separately.
+const MERGED_GAMES: GameInfo[] = GAMES.map((game) => {
+  const key = GAME_TO_LEAGUE_KEY[game.id]
+  if (!key) return game
+  const battles = ((leagueData as Record<string, LeagueBattle[]>)[key] ?? []) as LeagueBattle[]
+  return { ...game, gymLeaders: generateFromLeagueData(battles) }
+})
+
 export const GAMES_BY_GEN: Record<number, GameInfo[]> = {
-  1: GAMES.filter((g) => g.generation === 1),
-  2: GAMES.filter((g) => g.generation === 2),
-  3: GAMES.filter((g) => g.generation === 3),
-  4: GAMES.filter((g) => g.generation === 4),
-  5: GAMES.filter((g) => g.generation === 5),
-  6: GAMES.filter((g) => g.generation === 6),
-  7: GAMES.filter((g) => g.generation === 7),
+  1: MERGED_GAMES.filter((g) => g.generation === 1),
+  2: MERGED_GAMES.filter((g) => g.generation === 2),
+  3: MERGED_GAMES.filter((g) => g.generation === 3),
+  4: MERGED_GAMES.filter((g) => g.generation === 4),
+  5: MERGED_GAMES.filter((g) => g.generation === 5),
+  6: MERGED_GAMES.filter((g) => g.generation === 6),
+  7: MERGED_GAMES.filter((g) => g.generation === 7),
+  8: MERGED_GAMES.filter((g) => g.generation === 8),
+  9: MERGED_GAMES.filter((g) => g.generation === 9),
 }
 
 export function getGameById(id: string): GameInfo | undefined {
-  return GAMES.find((g) => g.id === id)
+  return MERGED_GAMES.find((g) => g.id === id)
 }
